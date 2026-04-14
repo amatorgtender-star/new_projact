@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/subway_models.dart';
-import '../data/dummy_data.dart';
+import '../data/station_data.dart';
+import '../services/subway_api_service.dart';
 import 'timetable_screen.dart';
 
-// --- 1. 메인 화면 ---
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -15,40 +15,70 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  String weatherTemp = "";
-  SubwayStation currentStation = sampleStations[0];
-  late ArrivalInfo currentArrivalInfo;
+  String weatherTemp = '';
+  SubwayStation currentStation = stations[0];
+
+  // 실시간 도착 정보 (현재 열차, 다음 열차)
+  List<ArrivalInfo> arrivals = [];
+  bool isLoadingArrival = false;
+  String? arrivalError;
 
   @override
   void initState() {
     super.initState();
     fetchWeather();
-    currentArrivalInfo = generateArrivalInfo(currentStation);
+    _loadArrival(currentStation);
   }
 
   Future<void> fetchWeather() async {
     try {
       final response = await http.get(
         Uri.parse(
-          'https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.9780&current_weather=true',
+          'https://api.open-meteo.com/v1/forecast'
+          '?latitude=37.5665&longitude=126.9780&current_weather=true',
         ),
       );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        setState(() {
-          weatherTemp = "${data['current_weather']['temperature']}°C";
-        });
+        if (mounted) {
+          setState(() {
+            weatherTemp = "${data['current_weather']['temperature']}°C";
+          });
+        }
       }
     } catch (e) {
-      debugPrint("날씨 정보 로드 실패: $e");
+      debugPrint('날씨 정보 로드 실패: $e');
     }
   }
 
-  void updateStation(SubwayStation newStation) {
+  Future<void> _loadArrival(SubwayStation station) async {
     setState(() {
-      currentStation = newStation;
-      currentArrivalInfo = generateArrivalInfo(newStation);
+      isLoadingArrival = true;
+      arrivalError = null;
+      arrivals = [];
     });
+    try {
+      final result =
+          await SubwayApiService.fetchRealtimeArrival(station.stationName);
+      if (mounted) {
+        setState(() {
+          arrivals = result;
+          isLoadingArrival = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          arrivalError = e.toString();
+          isLoadingArrival = false;
+        });
+      }
+    }
+  }
+
+  void _onStationSelected(SubwayStation station) {
+    setState(() => currentStation = station);
+    _loadArrival(station);
   }
 
   @override
@@ -56,7 +86,7 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          '지하철 시간표 만들기',
+          '지하철 시간표',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -83,30 +113,30 @@ class _MainScreenState extends State<MainScreen> {
             // 역 검색창
             Autocomplete<SubwayStation>(
               initialValue: TextEditingValue(text: currentStation.stationName),
-              displayStringForOption: (SubwayStation option) =>
-                  option.stationName,
-              optionsBuilder: (TextEditingValue textEditingValue) {
-                if (textEditingValue.text == '') {
+              displayStringForOption: (s) => s.stationName,
+              optionsBuilder: (TextEditingValue value) {
+                if (value.text.isEmpty) {
                   return const Iterable<SubwayStation>.empty();
                 }
-                return sampleStations.where((SubwayStation option) {
-                  return option.stationName.contains(textEditingValue.text) ||
-                      option.lineName.contains(textEditingValue.text);
-                });
+                return stations.where(
+                  (s) =>
+                      s.stationName.contains(value.text) ||
+                      s.lineName.contains(value.text),
+                );
               },
-              onSelected: updateStation,
+              onSelected: _onStationSelected,
               fieldViewBuilder:
-                  (context, textEditingController, focusNode, onFieldSubmitted) {
+                  (context, controller, focusNode, onFieldSubmitted) {
                 return Container(
                   decoration: BoxDecoration(
                     color: Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: TextField(
-                    controller: textEditingController,
+                    controller: controller,
                     focusNode: focusNode,
                     decoration: const InputDecoration(
-                      hintText: '출발역 검색 (예: 강남, 1호선)',
+                      hintText: '출발역 검색 (예: 강남, 2호선)',
                       prefixIcon: Icon(Icons.search, color: Colors.grey),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.all(16),
@@ -126,13 +156,13 @@ class _MainScreenState extends State<MainScreen> {
                         padding: EdgeInsets.zero,
                         shrinkWrap: true,
                         itemCount: options.length,
-                        separatorBuilder: (context, index) =>
+                        separatorBuilder: (_, __) =>
                             const Divider(height: 1),
-                        itemBuilder: (BuildContext context, int index) {
-                          final SubwayStation option = options.elementAt(index);
+                        itemBuilder: (context, index) {
+                          final s = options.elementAt(index);
                           return ListTile(
                             title: Text(
-                              option.stationName,
+                              s.stationName,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -147,14 +177,14 @@ class _MainScreenState extends State<MainScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                option.lineName,
+                                s.lineName,
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: Colors.black54,
                                 ),
                               ),
                             ),
-                            onTap: () => onSelected(option),
+                            onTap: () => onSelected(s),
                           );
                         },
                       ),
@@ -165,7 +195,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
             const SizedBox(height: 24),
 
-            // 실시간 정보
+            // 실시간 도착 정보 헤더
             Row(
               children: [
                 const Icon(Icons.access_time, color: Colors.blue),
@@ -179,88 +209,19 @@ class _MainScreenState extends State<MainScreen> {
                   currentStation.lineName,
                   style: const TextStyle(color: Colors.grey, fontSize: 14),
                 ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  onPressed: () => _loadArrival(currentStation),
+                  tooltip: '새로고침',
+                ),
               ],
             ),
             const SizedBox(height: 8),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${currentArrivalInfo.destination}행',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          currentArrivalInfo.currentTrainStatus,
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '다음 열차',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 12,
-                              ),
-                            ),
-                            Text(
-                              currentArrivalInfo.nextTrainStatus,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    if (currentArrivalInfo.isDelayed) ...[
-                      const Divider(height: 24),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.warning_amber_rounded,
-                            color: Colors.red,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              currentArrivalInfo.delayMessage ?? '',
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
+            _buildArrivalCard(),
             const SizedBox(height: 24),
 
-            // 지하철 탑승 위치 정보
+            // 탑승 위치 정보
             const Row(
               children: [
                 Icon(Icons.info_outline, color: Colors.blue),
@@ -341,7 +302,6 @@ class _MainScreenState extends State<MainScreen> {
 
             const Spacer(),
 
-            // 이동 버튼
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).primaryColor,
@@ -355,7 +315,7 @@ class _MainScreenState extends State<MainScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
+                    builder: (_) =>
                         TimetableScreen(station: currentStation),
                   ),
                 );
@@ -370,6 +330,102 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
             const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArrivalCard() {
+    if (isLoadingArrival) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    if (arrivalError != null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Row(
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '도착 정보를 불러오지 못했습니다.\n$arrivalError',
+                  style: const TextStyle(color: Colors.red, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (arrivals.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: Text('도착 예정 열차 정보가 없습니다.'),
+        ),
+      );
+    }
+
+    final current = arrivals[0];
+    final next = arrivals.length > 1 ? arrivals[1] : null;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${current.destination}행  ·  ${current.updnLine}',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Text(
+                    current.currentTrainStatus,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (next != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '다음 열차',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        next.currentTrainStatus,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
           ],
         ),
       ),
