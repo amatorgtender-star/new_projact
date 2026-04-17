@@ -20,7 +20,7 @@ class SubwayApiService {
   ) async {
     final uri = Uri.parse(
       'http://swopenapi.seoul.go.kr/api/subway/$_realtimeApiKey'
-      '/json/realtimeStationArrival/0/5/$stationName',
+      '/json/realtimeStationArrival/0/20/$stationName',
     );
     final response = await http.get(uri);
 
