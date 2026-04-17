@@ -11,14 +11,15 @@ class SubwayStation {
   });
 }
 
+
 class ArrivalInfo {
   final String currentTrainStatus; // arvlMsg2 - 현재 위치 (예: "당역 진입", "2분 30초 후")
-  final String? positionDetail;    // arvlMsg3 - 이전역 출발 정보
-  final String destination;        // bstatnNm - 종착역명
-  final String trainLineName;      // trainLineNm - 방면 (예: "상행 - 당산방면")
-  final String updnLine;           // 상행 / 하행
-  final int remainingSeconds;      // barvlDt - 도착까지 남은 초
-  final int arvlCd;                // 도착코드: 0=진입,1=도착,2=출발,3=전역출발,4=전역진입,5=전역도착,99=운행중
+  final String? positionDetail; // arvlMsg3 - 이전역 출발 정보
+  final String destination; // bstatnNm - 종착역명
+  final String trainLineName; // trainLineNm - 방면 (예: "상행 - 당산방면")
+  final String updnLine; // 상행 / 하행
+  final int remainingSeconds; // barvlDt - 도착까지 남은 초
+  final int arvlCd; // 도착코드: 0=진입,1=도착,2=출발,3=전역출발,4=전역진입,5=전역도착,99=운행중
 
   const ArrivalInfo({
     required this.currentTrainStatus,
@@ -37,8 +38,7 @@ class ArrivalInfo {
       destination: json['bstatnNm'] as String? ?? '종착역',
       trainLineName: json['trainLineNm'] as String? ?? '',
       updnLine: json['updnLine'] as String? ?? '',
-      remainingSeconds:
-          int.tryParse(json['barvlDt']?.toString() ?? '0') ?? 0,
+      remainingSeconds: int.tryParse(json['barvlDt']?.toString() ?? '0') ?? 0,
       arvlCd: int.tryParse(json['arvlCd']?.toString() ?? '99') ?? 99,
     );
   }

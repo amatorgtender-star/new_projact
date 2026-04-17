@@ -189,7 +189,7 @@ class SubwayApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '지하철 시간표 만들기',
+      title: '지하철 시간 안내표',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primaryColor: getThemeColor(),
@@ -272,7 +272,7 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          '지하철 시간표 만들기',
+          '지하철 시간 안내표',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
