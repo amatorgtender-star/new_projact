@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 import '../models/subway_models.dart';
 import '../data/station_data.dart';
 import '../services/subway_api_service.dart';
-import '../services/weather_service.dart';
 import 'timetable_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -29,7 +30,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchWeather();
+    fetchWeather();
   }
 
   @override
@@ -37,15 +38,6 @@ class _MainScreenState extends State<MainScreen> {
     _refreshTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
-  }
-
-  Future<void> _fetchWeather() async {
-    try {
-      final temp = await WeatherService.fetchTemperature();
-      if (mounted) setState(() => weatherTemp = temp);
-    } catch (e) {
-      debugPrint('날씨 정보 로드 실패: $e');
-    }
   }
 
   Future<void> _loadArrival(SubwayStation station) async {
@@ -70,6 +62,27 @@ class _MainScreenState extends State<MainScreen> {
           _isLoadingArrival = false;
         });
       }
+    }
+  }
+
+  Future<void> fetchWeather() async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+          'https://api.open-meteo.com/v1/forecast'
+          '?latitude=37.5665&longitude=126.9780&current_weather=true',
+        ),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (mounted) {
+          setState(() {
+            weatherTemp = "${data['current_weather']['temperature']}°C";
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('날씨 정보 로드 실패: $e');
     }
   }
 
@@ -99,94 +112,10 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void updateArrivalStation(SubwayStation newStation) {
-    setState(() => arrivalStation = newStation);
+    setState(() {
+      arrivalStation = newStation;
+    });
     FocusManager.instance.primaryFocus?.unfocus();
-  }
-
-  Widget _buildStationSearch({
-    required SubwayStation? currentStation,
-    required String hintText,
-    required IconData prefixIcon,
-    required Color iconColor,
-    required void Function(SubwayStation) onSelected,
-  }) {
-    return Autocomplete<SubwayStation>(
-      initialValue: TextEditingValue(text: currentStation?.stationName ?? ''),
-      displayStringForOption: (s) => s.stationName,
-      optionsBuilder: (value) {
-        if (value.text.isEmpty) return const Iterable<SubwayStation>.empty();
-        return stations.where(
-          (s) =>
-              s.stationName.contains(value.text) ||
-              s.lineName.contains(value.text),
-        );
-      },
-      onSelected: onSelected,
-      fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: TextField(
-            controller: controller,
-            focusNode: focusNode,
-            onSubmitted: (_) => onSubmitted(),
-            decoration: InputDecoration(
-              hintText: hintText,
-              prefixIcon: Icon(prefixIcon, color: iconColor),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.all(16),
-            ),
-          ),
-        );
-      },
-      optionsViewBuilder: (context, onSelect, options) {
-        return Align(
-          alignment: Alignment.topLeft,
-          child: Material(
-            elevation: 4.0,
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: MediaQuery.of(context).size.width - 32,
-              child: ListView.separated(
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                itemCount: options.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final s = options.elementAt(index);
-                  return ListTile(
-                    title: Text(
-                      s.stationName,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        s.lineName,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ),
-                    onTap: () => onSelect(s),
-                  );
-                },
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Widget _buildArrivalCard({
@@ -194,6 +123,10 @@ class _MainScreenState extends State<MainScreen> {
     required ArrivalInfo? current,
     ArrivalInfo? next,
   }) {
+    final currentStatus = current?.remainingText ?? '정보 없음';
+    final nextStatus = next?.remainingText ?? '-';
+    final destination = current?.destination ?? '-';
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -214,7 +147,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '${current?.destination ?? '-'}행',
+                  '$destination행',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                 ),
               ],
@@ -225,7 +158,7 @@ class _MainScreenState extends State<MainScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  current?.remainingText ?? '정보 없음',
+                  currentStatus,
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -242,7 +175,7 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ),
                     Text(
-                      next?.remainingText ?? '-',
+                      nextStatus,
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -261,10 +194,16 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final upbound = _arrivals
-        .where((a) => a.updnLine.contains('상행') || a.updnLine.contains('내선'))
+        .where(
+          (a) =>
+              a.updnLine.contains('상행') || a.updnLine.contains('내선'),
+        )
         .toList();
     final downbound = _arrivals
-        .where((a) => a.updnLine.contains('하행') || a.updnLine.contains('외선'))
+        .where(
+          (a) =>
+              a.updnLine.contains('하행') || a.updnLine.contains('외선'),
+        )
         .toList();
 
     return Scaffold(
@@ -296,12 +235,95 @@ class _MainScreenState extends State<MainScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildStationSearch(
-                currentStation: departureStation,
-                hintText: '출발역 검색 (예: 강남, 2호선)',
-                prefixIcon: Icons.search,
-                iconColor: Colors.grey,
+              // 출발역 검색
+              Autocomplete<SubwayStation>(
+                initialValue: TextEditingValue(
+                  text: departureStation?.stationName ?? '',
+                ),
+                displayStringForOption: (SubwayStation option) =>
+                    option.stationName,
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  if (textEditingValue.text == '') {
+                    return const Iterable<SubwayStation>.empty();
+                  }
+                  return stations.where(
+                    (s) =>
+                        s.stationName.contains(textEditingValue.text) ||
+                        s.lineName.contains(textEditingValue.text),
+                  );
+                },
                 onSelected: updateDepartureStation,
+                fieldViewBuilder: (
+                  context,
+                  textEditingController,
+                  focusNode,
+                  onFieldSubmitted,
+                ) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextField(
+                      controller: textEditingController,
+                      focusNode: focusNode,
+                      onSubmitted: (_) => onFieldSubmitted(),
+                      decoration: const InputDecoration(
+                        hintText: '출발역 검색 (예: 강남, 2호선)',
+                        prefixIcon: Icon(Icons.search, color: Colors.grey),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.all(16),
+                      ),
+                    ),
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4.0,
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        width: MediaQuery.of(context).size.width - 32,
+                        child: ListView.separated(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final s = options.elementAt(index);
+                            return ListTile(
+                              title: Text(
+                                s.stationName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  s.lineName,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ),
+                              onTap: () => onSelected(s),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 8),
               const Center(
@@ -312,15 +334,104 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              _buildStationSearch(
-                currentStation: arrivalStation,
-                hintText: '도착역 검색 (예: 사당, 4호선)',
-                prefixIcon: Icons.location_on,
-                iconColor: Colors.blueAccent,
+              // 도착역 검색
+              Autocomplete<SubwayStation>(
+                initialValue: TextEditingValue(
+                  text: arrivalStation?.stationName ?? '',
+                ),
+                displayStringForOption: (SubwayStation option) =>
+                    option.stationName,
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  if (textEditingValue.text == '') {
+                    return const Iterable<SubwayStation>.empty();
+                  }
+                  return stations.where(
+                    (s) =>
+                        s.stationName.contains(textEditingValue.text) ||
+                        s.lineName.contains(textEditingValue.text),
+                  );
+                },
                 onSelected: updateArrivalStation,
+                fieldViewBuilder: (
+                  context,
+                  textEditingController,
+                  focusNode,
+                  onFieldSubmitted,
+                ) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextField(
+                      controller: textEditingController,
+                      focusNode: focusNode,
+                      onSubmitted: (_) => onFieldSubmitted(),
+                      decoration: const InputDecoration(
+                        hintText: '도착역 검색 (예: 사당, 4호선)',
+                        prefixIcon: Icon(
+                          Icons.location_on,
+                          color: Colors.blueAccent,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.all(16),
+                      ),
+                    ),
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4.0,
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        width: MediaQuery.of(context).size.width - 32,
+                        child: ListView.separated(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          separatorBuilder: (context, index) =>
+                              const Divider(height: 1),
+                          itemBuilder: (BuildContext context, int index) {
+                            final SubwayStation option =
+                                options.elementAt(index);
+                            return ListTile(
+                              title: Text(
+                                option.stationName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  option.lineName,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ),
+                              onTap: () => onSelected(option),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
 
               if (departureStation != null) ...[
+                // 환승 및 도착지 연계 정보 (둘 다 선택 시에만 표시)
                 if (arrivalStation != null) ...[
                   const SizedBox(height: 24),
                   Row(
@@ -384,8 +495,9 @@ class _MainScreenState extends State<MainScreen> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                         ),
                                         child: Text(
                                           '빠른문: ${getFastExit(transferStation)}',
@@ -405,6 +517,7 @@ class _MainScreenState extends State<MainScreen> {
                           else
                             const SizedBox.shrink(),
 
+                          // 도착역 연계 버스 정보
                           Row(
                             children: [
                               const Icon(
@@ -425,7 +538,8 @@ class _MainScreenState extends State<MainScreen> {
                           const SizedBox(height: 12),
                           Builder(
                             builder: (context) {
-                              final buses = getConnectedTransit(arrivalStation!);
+                              final buses =
+                                  getConnectedTransit(arrivalStation!);
                               if (buses.isEmpty) {
                                 return Text(
                                   '연계 버스 정보가 없습니다.',
@@ -479,6 +593,7 @@ class _MainScreenState extends State<MainScreen> {
 
                 const SizedBox(height: 24),
 
+                // 실시간 정보
                 Row(
                   key: _infoSectionKey,
                   children: [
@@ -538,6 +653,7 @@ class _MainScreenState extends State<MainScreen> {
                 ],
                 const SizedBox(height: 24),
 
+                // 지하철 탑승 위치 정보
                 const Row(
                   children: [
                     Icon(Icons.info_outline, color: Colors.blue),
@@ -566,9 +682,8 @@ class _MainScreenState extends State<MainScreen> {
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text(
-                                  '교통약자석은 1-1, 10-4 구역에 위치해 있습니다.',
-                                ),
+                                content:
+                                    Text('교통약자석은 1-1, 10-4 구역에 위치해 있습니다.'),
                                 duration: Duration(seconds: 2),
                               ),
                             );
@@ -617,8 +732,7 @@ class _MainScreenState extends State<MainScreen> {
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content:
-                                    Text('약냉방칸은 4번, 5번 칸에 위치해 있습니다.'),
+                                content: Text('약냉방칸은 4번, 5번 칸에 위치해 있습니다.'),
                                 duration: Duration(seconds: 2),
                               ),
                             );
@@ -649,6 +763,7 @@ class _MainScreenState extends State<MainScreen> {
 
                 const SizedBox(height: 40),
 
+                // 이동 버튼
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).primaryColor,
