@@ -1,11 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
 import '../models/subway_models.dart';
 import '../data/station_data.dart';
 import '../services/subway_api_service.dart';
+import '../services/weather_service.dart';
 import 'timetable_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -32,7 +31,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    fetchWeather();
+    _fetchWeather();
   }
 
   @override
@@ -40,6 +39,15 @@ class _MainScreenState extends State<MainScreen> {
     _refreshTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchWeather() async {
+    try {
+      final temp = await WeatherService.fetchTemperature();
+      if (mounted) setState(() => weatherTemp = temp);
+    } catch (e) {
+      debugPrint('날씨 정보 로드 실패: $e');
+    }
   }
 
   Future<void> _loadArrival(SubwayStation station) async {
@@ -62,27 +70,6 @@ class _MainScreenState extends State<MainScreen> {
           _isLoadingArrival = false;
         });
       }
-    }
-  }
-
-  Future<void> fetchWeather() async {
-    try {
-      final response = await http.get(
-        Uri.parse(
-          'https://api.open-meteo.com/v1/forecast'
-          '?latitude=37.5665&longitude=126.9780&current_weather=true',
-        ),
-      );
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (mounted) {
-          setState(() {
-            weatherTemp = "${data['current_weather']['temperature']}°C";
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('날씨 정보 로드 실패: $e');
     }
   }
 
@@ -113,11 +100,101 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void updateArrivalStation(SubwayStation newStation) {
+<<<<<<< HEAD
     _arrivalJustSelected = true;
     setState(() {
       arrivalStation = newStation;
     });
+=======
+    setState(() => arrivalStation = newStation);
+>>>>>>> claude/reverent-noether-810420
     FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  Widget _buildStationSearch({
+    required SubwayStation? currentStation,
+    required String hintText,
+    required IconData prefixIcon,
+    required Color iconColor,
+    required void Function(SubwayStation) onSelected,
+  }) {
+    return Autocomplete<SubwayStation>(
+      initialValue: TextEditingValue(text: currentStation?.stationName ?? ''),
+      displayStringForOption: (s) => s.stationName,
+      optionsBuilder: (value) {
+        if (value.text.isEmpty) return const Iterable<SubwayStation>.empty();
+        return stations.where(
+          (s) =>
+              s.stationName.contains(value.text) ||
+              s.lineName.contains(value.text),
+        );
+      },
+      onSelected: onSelected,
+      fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            onSubmitted: (_) => onSubmitted(),
+            decoration: InputDecoration(
+              hintText: hintText,
+              prefixIcon: Icon(prefixIcon, color: iconColor),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.all(16),
+            ),
+          ),
+        );
+      },
+      optionsViewBuilder: (context, onSelect, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4.0,
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: MediaQuery.of(context).size.width - 32,
+              child: ListView.separated(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final s = options.elementAt(index);
+                  return ListTile(
+                    title: Text(
+                      s.stationName,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        s.lineName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
+                    onTap: () => onSelect(s),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildArrivalCard({
@@ -125,10 +202,6 @@ class _MainScreenState extends State<MainScreen> {
     required ArrivalInfo? current,
     ArrivalInfo? next,
   }) {
-    final currentStatus = current?.remainingText ?? '정보 없음';
-    final nextStatus = next?.remainingText ?? '-';
-    final destination = current?.destination ?? '-';
-
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -149,7 +222,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '$destination행',
+                  '${current?.destination ?? '-'}행',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                 ),
               ],
@@ -160,8 +233,16 @@ class _MainScreenState extends State<MainScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
+<<<<<<< HEAD
                   currentStatus,
                   style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+=======
+                  current?.remainingText ?? '정보 없음',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+>>>>>>> claude/reverent-noether-810420
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -171,8 +252,16 @@ class _MainScreenState extends State<MainScreen> {
                       style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                     ),
                     Text(
+<<<<<<< HEAD
                       nextStatus,
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+=======
+                      next?.remainingText ?? '-',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+>>>>>>> claude/reverent-noether-810420
                     ),
                   ],
                 ),
@@ -266,6 +355,7 @@ class _MainScreenState extends State<MainScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+<<<<<<< HEAD
               // 출발역 검색
               Autocomplete<SubwayStation>(
                 initialValue: TextEditingValue(text: departureStation?.stationName ?? ''),
@@ -303,6 +393,14 @@ class _MainScreenState extends State<MainScreen> {
                   );
                 },
                 optionsViewBuilder: _buildOptionsList,
+=======
+              _buildStationSearch(
+                currentStation: departureStation,
+                hintText: '출발역 검색 (예: 강남, 2호선)',
+                prefixIcon: Icons.search,
+                iconColor: Colors.grey,
+                onSelected: updateDepartureStation,
+>>>>>>> claude/reverent-noether-810420
               ),
               const SizedBox(height: 8),
               const Center(
@@ -313,6 +411,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
               const SizedBox(height: 8),
+<<<<<<< HEAD
               // 도착역 검색
               Autocomplete<SubwayStation>(
                 initialValue: TextEditingValue(text: arrivalStation?.stationName ?? ''),
@@ -355,6 +454,175 @@ class _MainScreenState extends State<MainScreen> {
               if (departureStation != null) ...[
                 // 실시간 도착 정보
                 const SizedBox(height: 24),
+=======
+              _buildStationSearch(
+                currentStation: arrivalStation,
+                hintText: '도착역 검색 (예: 사당, 4호선)',
+                prefixIcon: Icons.location_on,
+                iconColor: Colors.blueAccent,
+                onSelected: updateArrivalStation,
+              ),
+
+              if (departureStation != null) ...[
+                if (arrivalStation != null) ...[
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      const Icon(Icons.directions_subway, color: Colors.green),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '환승 및 도착지 연계 정보',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    elevation: 0,
+                    color: Colors.green.shade50,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: Colors.green.shade100),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          if (departureStation!.lineName !=
+                              arrivalStation!.lineName)
+                            () {
+                              final transferStationName = getTransferStation(
+                                departureStation!,
+                                arrivalStation!,
+                              );
+                              final transferStation = stations.firstWhere(
+                                (s) => s.stationName == transferStationName,
+                                orElse: () => arrivalStation!,
+                              );
+                              return Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.transfer_within_a_station,
+                                        color: Colors.green,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '환승역: $transferStationName',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          '빠른문: ${getFastExit(transferStation)}',
+                                          style: const TextStyle(
+                                            color: Colors.green,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const Divider(height: 24),
+                                ],
+                              );
+                            }()
+                          else
+                            const SizedBox.shrink(),
+
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.bus_alert,
+                                color: Colors.orange,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${arrivalStation!.stationName}역 ${getExitForTransit(arrivalStation!)} 연계 버스',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Builder(
+                            builder: (context) {
+                              final buses = getConnectedTransit(arrivalStation!);
+                              if (buses.isEmpty) {
+                                return Text(
+                                  '연계 버스 정보가 없습니다.',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 13,
+                                  ),
+                                );
+                              }
+                              return Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: buses
+                                    .map(
+                                      (bus) => Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          border: Border.all(
+                                            color: Colors.grey.shade200,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          bus,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: bus.contains('광역')
+                                                ? Colors.red
+                                                : (bus.contains('지선')
+                                                    ? Colors.green
+                                                    : Colors.blue),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 24),
+
+>>>>>>> claude/reverent-noether-810420
                 Row(
                   key: _infoSectionKey,
                   children: [
@@ -408,6 +676,7 @@ class _MainScreenState extends State<MainScreen> {
                 ],
                 const SizedBox(height: 24),
 
+<<<<<<< HEAD
                 // 환승 및 도착지 연계 정보 (도착역 선택 시)
                 if (arrivalStation != null) ...[
                   Row(
@@ -568,6 +837,8 @@ class _MainScreenState extends State<MainScreen> {
                 ],
 
                 // 탑승 위치 정보
+=======
+>>>>>>> claude/reverent-noether-810420
                 const Row(
                   children: [
                     Icon(Icons.info_outline, color: Colors.blue),
@@ -590,6 +861,7 @@ class _MainScreenState extends State<MainScreen> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16)),
                         child: InkWell(
+<<<<<<< HEAD
                           onTap: () => showDialog(
                             context: context,
                             builder: (_) => AlertDialog(
@@ -600,6 +872,15 @@ class _MainScreenState extends State<MainScreen> {
                                   Text('교통약자석',
                                       style: TextStyle(color: Colors.blue)),
                                 ],
+=======
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  '교통약자석은 1-1, 10-4 구역에 위치해 있습니다.',
+                                ),
+                                duration: Duration(seconds: 2),
+>>>>>>> claude/reverent-noether-810420
                               ),
                               content: const Text(
                                 '• 위치: 1번 칸 1번 문, 10번 칸 4번 문\n'
@@ -658,6 +939,7 @@ class _MainScreenState extends State<MainScreen> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16)),
                         child: InkWell(
+<<<<<<< HEAD
                           onTap: () => showDialog(
                             context: context,
                             builder: (_) => AlertDialog(
@@ -668,6 +950,14 @@ class _MainScreenState extends State<MainScreen> {
                                   Text('약냉방칸',
                                       style: TextStyle(color: Colors.cyan)),
                                 ],
+=======
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content:
+                                    Text('약냉방칸은 4번, 5번 칸에 위치해 있습니다.'),
+                                duration: Duration(seconds: 2),
+>>>>>>> claude/reverent-noether-810420
                               ),
                               content: const Text(
                                 '• 위치: 4번 칸, 5번 칸\n'
@@ -714,7 +1004,10 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 const SizedBox(height: 40),
 
+<<<<<<< HEAD
                 // 전체 시간표 버튼
+=======
+>>>>>>> claude/reverent-noether-810420
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).primaryColor,
