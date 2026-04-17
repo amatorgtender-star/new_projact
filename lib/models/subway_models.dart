@@ -6,16 +6,24 @@ class SubwayStation {
 }
 
 class ArrivalInfo {
-  final String currentTrainStatus;
-  final String nextTrainStatus;
-  final String destination;
+  final String upboundDestination;
+  final String upboundCurrentStatus;
+  final String upboundNextStatus;
+
+  final String downboundDestination;
+  final String downboundCurrentStatus;
+  final String downboundNextStatus;
+
   final bool isDelayed;
   final String? delayMessage;
 
   ArrivalInfo({
-    required this.currentTrainStatus,
-    required this.nextTrainStatus,
-    required this.destination,
+    required this.upboundDestination,
+    required this.upboundCurrentStatus,
+    required this.upboundNextStatus,
+    required this.downboundDestination,
+    required this.downboundCurrentStatus,
+    required this.downboundNextStatus,
     required this.isDelayed,
     this.delayMessage,
   });
