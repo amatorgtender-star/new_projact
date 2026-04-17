@@ -20,8 +20,9 @@ class SubwayApiService {
   ) async {
     final uri = Uri.parse(
       'http://swopenapi.seoul.go.kr/api/subway/$_realtimeApiKey'
-      '/json/realtimeStationArrival/0/20/$stationName',
+      '/json/realtimeStationArrival/1/5/$stationName',
     );
+
     final response = await http.get(uri);
 
     if (response.statusCode != 200) {
@@ -35,10 +36,7 @@ class SubwayApiService {
     }
 
     final list = (data['realtimeArrivalList'] as List?) ?? [];
-    return list
-        .cast<Map<String, dynamic>>()
-        .map(ArrivalInfo.fromJson)
-        .toList();
+    return list.cast<Map<String, dynamic>>().map(ArrivalInfo.fromJson).toList();
   }
 
   /// 정적 시간표 조회
@@ -74,7 +72,10 @@ class SubwayApiService {
     }
 
     final rows = (service['row'] as List?) ?? [];
-    return rows.cast<Map<String, dynamic>>().map(TrainSchedule.fromJson).toList();
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(TrainSchedule.fromJson)
+        .toList();
   }
 
   static int _currentDayType() {

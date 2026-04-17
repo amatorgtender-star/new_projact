@@ -25,8 +25,10 @@ class _MainScreenState extends State<MainScreen> {
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _infoSectionKey = GlobalKey();
-  bool _departureJustSelected = false;
-  bool _arrivalJustSelected = false;
+  final TextEditingController _departureController = TextEditingController();
+  final TextEditingController _arrivalController = TextEditingController();
+  final FocusNode _departureFocusNode = FocusNode();
+  final FocusNode _arrivalFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -38,6 +40,10 @@ class _MainScreenState extends State<MainScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     _scrollController.dispose();
+    _departureController.dispose();
+    _arrivalController.dispose();
+    _departureFocusNode.dispose();
+    _arrivalFocusNode.dispose();
     super.dispose();
   }
 
@@ -74,7 +80,8 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void updateDepartureStation(SubwayStation newStation) {
-    _departureJustSelected = true;
+    _departureController.text = newStation.stationName;
+    _departureFocusNode.unfocus();
     setState(() {
       departureStation = newStation;
       _arrivals = [];
@@ -86,8 +93,8 @@ class _MainScreenState extends State<MainScreen> {
       const Duration(seconds: 30),
       (_) => _loadArrival(newStation),
     );
-    FocusManager.instance.primaryFocus?.unfocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final ctx = _infoSectionKey.currentContext;
       if (ctx != null) {
         Scrollable.ensureVisible(
@@ -100,26 +107,22 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void updateArrivalStation(SubwayStation newStation) {
-<<<<<<< HEAD
-    _arrivalJustSelected = true;
-    setState(() {
-      arrivalStation = newStation;
-    });
-=======
+    _arrivalController.text = newStation.stationName;
+    _arrivalFocusNode.unfocus();
     setState(() => arrivalStation = newStation);
->>>>>>> claude/reverent-noether-810420
-    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   Widget _buildStationSearch({
-    required SubwayStation? currentStation,
+    required TextEditingController controller,
+    required FocusNode focusNode,
     required String hintText,
     required IconData prefixIcon,
     required Color iconColor,
     required void Function(SubwayStation) onSelected,
   }) {
-    return Autocomplete<SubwayStation>(
-      initialValue: TextEditingValue(text: currentStation?.stationName ?? ''),
+    return RawAutocomplete<SubwayStation>(
+      textEditingController: controller,
+      focusNode: focusNode,
       displayStringForOption: (s) => s.stationName,
       optionsBuilder: (value) {
         if (value.text.isEmpty) return const Iterable<SubwayStation>.empty();
@@ -130,15 +133,15 @@ class _MainScreenState extends State<MainScreen> {
         );
       },
       onSelected: onSelected,
-      fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+      fieldViewBuilder: (context, fieldController, fieldFocusNode, onSubmitted) {
         return Container(
           decoration: BoxDecoration(
             color: Colors.grey.shade200,
             borderRadius: BorderRadius.circular(12),
           ),
           child: TextField(
-            controller: controller,
-            focusNode: focusNode,
+            controller: fieldController,
+            focusNode: fieldFocusNode,
             onSubmitted: (_) => onSubmitted(),
             decoration: InputDecoration(
               hintText: hintText,
@@ -155,13 +158,16 @@ class _MainScreenState extends State<MainScreen> {
           child: Material(
             elevation: 4.0,
             borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: MediaQuery.of(context).size.width - 32,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width - 32,
+                maxHeight: 240,
+              ),
               child: ListView.separated(
                 padding: EdgeInsets.zero,
                 shrinkWrap: true,
                 itemCount: options.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (context, index) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final s = options.elementAt(index);
                   return ListTile(
@@ -233,16 +239,11 @@ class _MainScreenState extends State<MainScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-<<<<<<< HEAD
-                  currentStatus,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-=======
                   current?.remainingText ?? '정보 없음',
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
->>>>>>> claude/reverent-noether-810420
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -252,66 +253,17 @@ class _MainScreenState extends State<MainScreen> {
                       style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                     ),
                     Text(
-<<<<<<< HEAD
-                      nextStatus,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-=======
                       next?.remainingText ?? '-',
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
->>>>>>> claude/reverent-noether-810420
                     ),
                   ],
                 ),
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOptionsList(
-    BuildContext context,
-    AutocompleteOnSelected<SubwayStation> onSelected,
-    Iterable<SubwayStation> options,
-  ) {
-    return Align(
-      alignment: Alignment.topLeft,
-      child: Material(
-        elevation: 4.0,
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          width: MediaQuery.of(context).size.width - 32,
-          child: ListView.separated(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            itemCount: options.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final option = options.elementAt(index);
-              return ListTile(
-                title: Text(
-                  option.stationName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    option.lineName,
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                ),
-                onTap: () => onSelected(option),
-              );
-            },
-          ),
         ),
       ),
     );
@@ -355,52 +307,13 @@ class _MainScreenState extends State<MainScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-<<<<<<< HEAD
-              // 출발역 검색
-              Autocomplete<SubwayStation>(
-                initialValue: TextEditingValue(text: departureStation?.stationName ?? ''),
-                displayStringForOption: (option) => option.stationName,
-                optionsBuilder: (textEditingValue) {
-                  if (_departureJustSelected) {
-                    _departureJustSelected = false;
-                    return const Iterable<SubwayStation>.empty();
-                  }
-                  if (textEditingValue.text.isEmpty) {
-                    return const Iterable<SubwayStation>.empty();
-                  }
-                  return stations.where((s) =>
-                      s.stationName.contains(textEditingValue.text) ||
-                      s.lineName.contains(textEditingValue.text));
-                },
-                onSelected: updateDepartureStation,
-                fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      onSubmitted: (_) => onFieldSubmitted(),
-                      decoration: const InputDecoration(
-                        hintText: '출발역 검색 (예: 강남, 2호선)',
-                        prefixIcon: Icon(Icons.search, color: Colors.grey),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.all(16),
-                      ),
-                    ),
-                  );
-                },
-                optionsViewBuilder: _buildOptionsList,
-=======
               _buildStationSearch(
-                currentStation: departureStation,
+                controller: _departureController,
+                focusNode: _departureFocusNode,
                 hintText: '출발역 검색 (예: 강남, 2호선)',
                 prefixIcon: Icons.search,
                 iconColor: Colors.grey,
                 onSelected: updateDepartureStation,
->>>>>>> claude/reverent-noether-810420
               ),
               const SizedBox(height: 8),
               const Center(
@@ -411,52 +324,9 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-<<<<<<< HEAD
-              // 도착역 검색
-              Autocomplete<SubwayStation>(
-                initialValue: TextEditingValue(text: arrivalStation?.stationName ?? ''),
-                displayStringForOption: (option) => option.stationName,
-                optionsBuilder: (textEditingValue) {
-                  if (_arrivalJustSelected) {
-                    _arrivalJustSelected = false;
-                    return const Iterable<SubwayStation>.empty();
-                  }
-                  if (textEditingValue.text.isEmpty) {
-                    return const Iterable<SubwayStation>.empty();
-                  }
-                  return stations.where((s) =>
-                      s.stationName.contains(textEditingValue.text) ||
-                      s.lineName.contains(textEditingValue.text));
-                },
-                onSelected: updateArrivalStation,
-                fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      onSubmitted: (_) => onFieldSubmitted(),
-                      decoration: const InputDecoration(
-                        hintText: '도착역 검색 (예: 사당, 4호선)',
-                        prefixIcon: Icon(Icons.location_on, color: Colors.blueAccent),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.all(16),
-                      ),
-                    ),
-                  );
-                },
-                optionsViewBuilder: _buildOptionsList,
-              ),
-
-              if (departureStation != null) ...[
-                // 실시간 도착 정보
-                const SizedBox(height: 24),
-=======
               _buildStationSearch(
-                currentStation: arrivalStation,
+                controller: _arrivalController,
+                focusNode: _arrivalFocusNode,
                 hintText: '도착역 검색 (예: 사당, 4호선)',
                 prefixIcon: Icons.location_on,
                 iconColor: Colors.blueAccent,
@@ -621,8 +491,6 @@ class _MainScreenState extends State<MainScreen> {
                 ],
 
                 const SizedBox(height: 24),
-
->>>>>>> claude/reverent-noether-810420
                 Row(
                   key: _infoSectionKey,
                   children: [
@@ -676,7 +544,6 @@ class _MainScreenState extends State<MainScreen> {
                 ],
                 const SizedBox(height: 24),
 
-<<<<<<< HEAD
                 // 환승 및 도착지 연계 정보 (도착역 선택 시)
                 if (arrivalStation != null) ...[
                   Row(
@@ -837,8 +704,6 @@ class _MainScreenState extends State<MainScreen> {
                 ],
 
                 // 탑승 위치 정보
-=======
->>>>>>> claude/reverent-noether-810420
                 const Row(
                   children: [
                     Icon(Icons.info_outline, color: Colors.blue),
@@ -861,41 +726,26 @@ class _MainScreenState extends State<MainScreen> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16)),
                         child: InkWell(
-<<<<<<< HEAD
-                          onTap: () => showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              title: const Row(
-                                children: [
-                                  Icon(Icons.accessible, color: Colors.blue),
-                                  SizedBox(width: 8),
-                                  Text('교통약자석',
-                                      style: TextStyle(color: Colors.blue)),
-                                ],
-=======
                           onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  '교통약자석은 1-1, 10-4 구역에 위치해 있습니다.',
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('교통약자석'),
+                                content: const Text(
+                                  '• 위치: 1번 칸 1번 문, 10번 칸 4번 문\n'
+                                  '• 대상: 임산부, 노약자, 장애인\n'
+                                  '• 일반 승객은 이용을 자제해 주세요.',
+                                  style: TextStyle(fontSize: 14, height: 1.8),
                                 ),
-                                duration: Duration(seconds: 2),
->>>>>>> claude/reverent-noether-810420
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('확인'),
+                                  ),
+                                ],
                               ),
-                              content: const Text(
-                                '• 위치: 1번 칸 1번 문, 10번 칸 4번 문\n'
-                                '• 대상: 임산부, 노약자, 장애인\n'
-                                '• 일반 승객은 이용을 자제해 주세요.',
-                                style: TextStyle(fontSize: 14, height: 1.8),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('확인'),
-                                ),
-                              ],
-                            ),
-                          ),
+                            );
+                          },
                           child: const Padding(
                             padding: EdgeInsets.all(16.0),
                             child: Column(
@@ -939,40 +789,26 @@ class _MainScreenState extends State<MainScreen> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16)),
                         child: InkWell(
-<<<<<<< HEAD
-                          onTap: () => showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              title: const Row(
-                                children: [
-                                  Icon(Icons.ac_unit, color: Colors.cyan),
-                                  SizedBox(width: 8),
-                                  Text('약냉방칸',
-                                      style: TextStyle(color: Colors.cyan)),
-                                ],
-=======
                           onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content:
-                                    Text('약냉방칸은 4번, 5번 칸에 위치해 있습니다.'),
-                                duration: Duration(seconds: 2),
->>>>>>> claude/reverent-noether-810420
-                              ),
-                              content: const Text(
-                                '• 위치: 4번 칸, 5번 칸\n'
-                                '• 일반 칸보다 냉방을 약하게 운영\n'
-                                '• 더위를 잘 타는 승객에게 비추천',
-                                style: TextStyle(fontSize: 14, height: 1.8),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('확인'),
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('약냉방칸'),
+                                content: const Text(
+                                  '• 위치: 4번 칸, 5번 칸\n'
+                                  '• 일반 칸보다 냉방을 약하게 운영\n'
+                                  '• 더위를 잘 타는 승객에게 비추천',
+                                  style: TextStyle(fontSize: 14, height: 1.8),
                                 ),
-                              ],
-                            ),
-                          ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('확인'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                           child: const Padding(
                             padding: EdgeInsets.all(16.0),
                             child: Column(
@@ -1004,10 +840,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 const SizedBox(height: 40),
 
-<<<<<<< HEAD
                 // 전체 시간표 버튼
-=======
->>>>>>> claude/reverent-noether-810420
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).primaryColor,
