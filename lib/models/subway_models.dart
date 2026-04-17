@@ -18,6 +18,7 @@ class ArrivalInfo {
   final String destination; // bstatnNm - 종착역명
   final String trainLineName; // trainLineNm - 방면 (예: "상행 - 당산방면")
   final String updnLine; // 상행 / 하행
+  final String subwayId; // 서울 열린데이터 API 노선 ID
   final int remainingSeconds; // barvlDt - 도착까지 남은 초
   final int arvlCd; // 도착코드: 0=진입,1=도착,2=출발,3=전역출발,4=전역진입,5=전역도착,99=운행중
 
@@ -27,6 +28,7 @@ class ArrivalInfo {
     required this.destination,
     required this.trainLineName,
     required this.updnLine,
+    required this.subwayId,
     required this.remainingSeconds,
     required this.arvlCd,
   });
@@ -38,6 +40,7 @@ class ArrivalInfo {
       destination: json['bstatnNm'] as String? ?? '종착역',
       trainLineName: json['trainLineNm'] as String? ?? '',
       updnLine: json['updnLine'] as String? ?? '',
+      subwayId: json['subwayId'] as String? ?? '',
       remainingSeconds: int.tryParse(json['barvlDt']?.toString() ?? '0') ?? 0,
       arvlCd: int.tryParse(json['arvlCd']?.toString() ?? '99') ?? 99,
     );
@@ -51,6 +54,43 @@ class ArrivalInfo {
     if (m == 0) return '$s초 후';
     if (s == 0) return '$m분 후';
     return '$m분 $s초 후';
+  }
+
+  bool matchesLine(String lineName) {
+    final normalizedLineName = lineName.trim();
+    if (normalizedLineName.isEmpty) {
+      return true;
+    }
+
+    const subwayIdByLineName = {
+      '1호선': '1001',
+      '2호선': '1002',
+      '3호선': '1003',
+      '4호선': '1004',
+      '5호선': '1005',
+      '6호선': '1006',
+      '7호선': '1007',
+      '8호선': '1008',
+      '9호선': '1009',
+      '공항철도': '1065',
+      '경의중앙선': '1063',
+      '서해선': '1093',
+      '수인분당선': '1075',
+      '신분당선': '1077',
+      '우이신설선': '1092',
+      '신림선': '1094',
+      '경춘선': '1067',
+      '경강선': '1081',
+      '경부선': '1001',
+      '중앙선': '1061',
+    };
+
+    final expectedSubwayId = subwayIdByLineName[normalizedLineName];
+    if (expectedSubwayId != null && subwayId.isNotEmpty) {
+      return subwayId == expectedSubwayId;
+    }
+
+    return trainLineName.contains(normalizedLineName);
   }
 }
 
