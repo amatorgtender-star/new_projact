@@ -1,5 +1,21 @@
 import '../models/subway_models.dart';
 
+String getTransferStation(SubwayStation from, SubwayStation to) {
+  return '환승역 미확인';
+}
+
+String getFastExit(SubwayStation station) {
+  return '확인 필요';
+}
+
+String getExitForTransit(SubwayStation station) {
+  return '확인 필요';
+}
+
+List<String> getConnectedTransit(SubwayStation station) {
+  return [];
+}
+
 // 서울 지하철 역 목록
 // stationCode: SearchSTNTimeTableByIDService 역코드 (4자리)
 // 정확한 코드는 서울 열린데이터광장 > 지하철역 마스터 데이터에서 확인하세요.

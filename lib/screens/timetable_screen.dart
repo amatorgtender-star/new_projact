@@ -73,7 +73,7 @@ class _TimetableScreenState extends State<TimetableScreen>
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: schedules.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final s = schedules[index];
         return ListTile(
