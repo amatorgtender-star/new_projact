@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -18,16 +19,27 @@ class _MainScreenState extends State<MainScreen> {
   String weatherTemp = '';
   SubwayStation currentStation = stations[0];
 
-  // 실시간 도착 정보 (현재 열차, 다음 열차)
   List<ArrivalInfo> arrivals = [];
   bool isLoadingArrival = false;
   String? arrivalError;
+  Timer? _refreshTimer;
+  DateTime? _lastUpdated;
 
   @override
   void initState() {
     super.initState();
     fetchWeather();
     _loadArrival(currentStation);
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _loadArrival(currentStation),
+    );
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> fetchWeather() async {
@@ -64,6 +76,7 @@ class _MainScreenState extends State<MainScreen> {
         setState(() {
           arrivals = result;
           isLoadingArrival = false;
+          _lastUpdated = DateTime.now();
         });
       }
     } catch (e) {
@@ -78,7 +91,12 @@ class _MainScreenState extends State<MainScreen> {
 
   void _onStationSelected(SubwayStation station) {
     setState(() => currentStation = station);
+    _refreshTimer?.cancel();
     _loadArrival(station);
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _loadArrival(station),
+    );
   }
 
   @override
@@ -205,20 +223,29 @@ class _MainScreenState extends State<MainScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
-                Text(
-                  currentStation.lineName,
-                  style: const TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-                const SizedBox(width: 8),
+                if (_lastUpdated != null)
+                  Text(
+                    '${_lastUpdated!.hour.toString().padLeft(2, '0')}:'
+                    '${_lastUpdated!.minute.toString().padLeft(2, '0')}:'
+                    '${_lastUpdated!.second.toString().padLeft(2, '0')} 기준',
+                    style: const TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
                 IconButton(
-                  icon: const Icon(Icons.refresh, size: 20),
-                  onPressed: () => _loadArrival(currentStation),
-                  tooltip: '새로고침',
+                  icon: isLoadingArrival
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh, size: 20),
+                  onPressed:
+                      isLoadingArrival ? null : () => _loadArrival(currentStation),
+                  tooltip: '새로고침 (30초 자동)',
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            _buildArrivalCard(),
+            _buildArrivalSection(),
             const SizedBox(height: 24),
 
             // 탑승 위치 정보
@@ -336,8 +363,8 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildArrivalCard() {
-    if (isLoadingArrival) {
+  Widget _buildArrivalSection() {
+    if (isLoadingArrival && arrivals.isEmpty) {
       return const Card(
         child: Padding(
           padding: EdgeInsets.all(32.0),
@@ -346,7 +373,7 @@ class _MainScreenState extends State<MainScreen> {
       );
     }
 
-    if (arrivalError != null) {
+    if (arrivalError != null && arrivals.isEmpty) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
@@ -375,60 +402,157 @@ class _MainScreenState extends State<MainScreen> {
       );
     }
 
-    final current = arrivals[0];
-    final next = arrivals.length > 1 ? arrivals[1] : null;
+    // 상행/하행별로 그룹화
+    final Map<String, List<ArrivalInfo>> grouped = {};
+    for (final a in arrivals) {
+      final key = a.updnLine.isNotEmpty ? a.updnLine : '기타';
+      grouped.putIfAbsent(key, () => []).add(a);
+    }
 
+    return Column(
+      children: grouped.entries.map((entry) {
+        final direction = entry.key;
+        final list = entry.value;
+        final current = list[0];
+        final next = list.length > 1 ? list[1] : null;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: _buildDirectionCard(direction, current, next),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildDirectionCard(
+    String direction,
+    ArrivalInfo current,
+    ArrivalInfo? next,
+  ) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '${current.destination}행  ·  ${current.updnLine}',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-            ),
-            const SizedBox(height: 4),
+            // 방향 뱃지 + 종착역
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Expanded(
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: direction.contains('상') || direction.contains('내')
+                        ? Colors.blue.shade600
+                        : Colors.orange.shade600,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   child: Text(
-                    current.currentTrainStatus,
+                    direction,
                     style: const TextStyle(
-                      fontSize: 22,
+                      color: Colors.white,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                if (next != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '다음 열차',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        next.currentTrainStatus,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${current.destination}행',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 13,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
+                ),
               ],
             ),
+            const SizedBox(height: 12),
+            // 현재 열차
+            _buildTrainRow(
+              label: '현재',
+              info: current,
+              isHighlight: true,
+            ),
+            if (next != null) ...[
+              const Divider(height: 16),
+              _buildTrainRow(
+                label: '다음',
+                info: next,
+                isHighlight: false,
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTrainRow({
+    required String label,
+    required ArrivalInfo info,
+    required bool isHighlight,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 36,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: isHighlight ? Colors.blue : Colors.grey.shade500,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                info.currentTrainStatus,
+                style: TextStyle(
+                  fontSize: isHighlight ? 18 : 14,
+                  fontWeight:
+                      isHighlight ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              if (info.positionDetail != null &&
+                  info.positionDetail!.isNotEmpty)
+                Text(
+                  info.positionDetail!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (info.remainingSeconds > 0)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: isHighlight
+                  ? Colors.blue.shade50
+                  : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              info.remainingText,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isHighlight ? Colors.blue.shade700 : Colors.grey.shade600,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
