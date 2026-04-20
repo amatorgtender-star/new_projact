@@ -26,6 +26,7 @@ class _MainScreenState extends State<MainScreen> {
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _infoSectionKey = GlobalKey();
+  final GlobalKey _journeySectionKey = GlobalKey();
   bool _departureJustSelected = false;
   bool _arrivalJustSelected = false;
 
@@ -39,11 +40,26 @@ class _MainScreenState extends State<MainScreen> {
       return const Iterable<SubwayStation>.empty();
     }
 
-    return stations.where(
+    final filtered = stations.where(
       (station) =>
           station.stationName.contains(normalizedQuery) ||
           station.lineName.contains(normalizedQuery),
-    );
+    ).toList();
+
+    // 가나다순 정렬 (쿼리로 시작하는 것 우선, 그다음 역 이름 순, 그다음 호선 순)
+    filtered.sort((a, b) {
+      final aStarts = a.stationName.startsWith(normalizedQuery);
+      final bStarts = b.stationName.startsWith(normalizedQuery);
+
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+
+      int nameCompare = a.stationName.compareTo(b.stationName);
+      if (nameCompare != 0) return nameCompare;
+      return a.lineName.compareTo(b.lineName);
+    });
+
+    return filtered;
   }
 
   SubwayStation? _resolveStationQuery(String query) {
@@ -221,6 +237,18 @@ class _MainScreenState extends State<MainScreen> {
       arrivalStation = newStation;
     });
     FocusManager.instance.primaryFocus?.unfocus();
+    
+    // 도착역 선택 시 환승 정보를 확인하기 위해 아래로 스크롤
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _journeySectionKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
   }
 
   Widget _buildArrivalCard({
@@ -565,22 +593,23 @@ class _MainScreenState extends State<MainScreen> {
                 ],
                 const SizedBox(height: 24),
 
-                // 환승 및 도착지 연계 정보 (도착역 선택 시)
-                if (arrivalStation != null) ...[
-                  Row(
-                    children: [
-                      const Icon(Icons.directions_subway, color: Colors.green),
-                      const SizedBox(width: 8),
-                      const Text(
-                        '환승 및 도착지 연계 정보',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                // 환승 및 도착지 연계 정보
+                Row(
+                  key: _journeySectionKey,
+                  children: [
+                    const Icon(Icons.directions_subway, color: Colors.green),
+                    const SizedBox(width: 8),
+                    const Text(
+                      '환승 및 도착지 연계 정보',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (arrivalStation != null) 
                   Card(
                     elevation: 0,
                     color: Colors.green.shade50,
@@ -760,9 +789,25 @@ class _MainScreenState extends State<MainScreen> {
                         ],
                       ),
                     ),
+                  )
+                else
+                  Card(
+                    color: Colors.grey.shade100,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(24.0),
+                      child: Center(
+                        child: Text(
+                          '도착역을 선택하시면 환승 및 연계 버스 정보를 확인할 수 있습니다.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 24),
-                ],
+                const SizedBox(height: 24),
 
                 // 탑승 위치 정보
                 const Row(
