@@ -18,6 +18,31 @@ class SubwayApiService {
   static Future<List<ArrivalInfo>> fetchRealtimeArrival(
     String stationName,
   ) async {
+    if (_realtimeApiKey == 'YOUR_REALTIME_API_KEY') {
+      // API 키가 없을 때 더미 데이터 반환
+      await Future.delayed(const Duration(milliseconds: 500));
+      return [
+        ArrivalInfo(
+          currentTrainStatus: '당역 진입',
+          destination: '종착역',
+          trainLineName: '상행 - 다음역 방면',
+          updnLine: '상행',
+          subwayId: '1001',
+          remainingSeconds: 30,
+          arvlCd: 0,
+        ),
+        ArrivalInfo(
+          currentTrainStatus: '2분 전역 출발',
+          destination: '종착역',
+          trainLineName: '하행 - 이전역 방면',
+          updnLine: '하행',
+          subwayId: '1001',
+          remainingSeconds: 120,
+          arvlCd: 3,
+        ),
+      ];
+    }
+
     final uri = Uri.parse(
       'http://swopenapi.seoul.go.kr/api/subway/$_realtimeApiKey'
       '/json/realtimeStationArrival/0/20/$stationName',
@@ -42,15 +67,25 @@ class SubwayApiService {
   }
 
   /// 정적 시간표 조회
-  ///
-  /// [stationCode]: 역코드 4자리 (예: "0222" = 강남 2호선)
-  /// [direction]: 1 = 상행/내선, 2 = 하행/외선
-  /// [dayType]: 1 = 평일, 2 = 토요일, 3 = 공휴일 (null 이면 오늘 자동 판단)
   static Future<List<TrainSchedule>> fetchTimetable(
     String stationCode, {
     int direction = 1,
     int? dayType,
   }) async {
+    if (_timetableApiKey == 'YOUR_TIMETABLE_API_KEY') {
+      // API 키가 없을 때 더미 데이터 반환
+      await Future.delayed(const Duration(milliseconds: 500));
+      return List.generate(10, (index) {
+        final hour = 8 + (index ~/ 2);
+        final minute = (index % 2) * 30 + 5;
+        return TrainSchedule(
+          time: '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}',
+          destination: direction == 1 ? '인천/신창' : '의정부/광운대',
+          type: index % 5 == 0 ? '급행' : '일반',
+        );
+      });
+    }
+
     final day = dayType ?? _currentDayType();
     final uri = Uri.parse(
       'http://openapi.seoul.go.kr:8088/$_timetableApiKey'
@@ -74,7 +109,10 @@ class SubwayApiService {
     }
 
     final rows = (service['row'] as List?) ?? [];
-    return rows.cast<Map<String, dynamic>>().map(TrainSchedule.fromJson).toList();
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(TrainSchedule.fromJson)
+        .toList();
   }
 
   static int _currentDayType() {

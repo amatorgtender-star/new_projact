@@ -35,24 +35,51 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Iterable<SubwayStation> _filterStations(String query) {
-    final normalizedQuery = query.trim();
+    final normalizedQuery = query.trim().toLowerCase();
     if (normalizedQuery.isEmpty) {
       return const Iterable<SubwayStation>.empty();
     }
 
-    final filtered = stations.where(
-      (station) =>
-          station.stationName.contains(normalizedQuery) ||
-          station.lineName.contains(normalizedQuery),
-    ).toList();
+    // 단어별로 분리 (예: "2호선 강남" -> ["2호선", "강남"])
+    final words = normalizedQuery.split(RegExp(r'\s+'));
 
-    // 가나다순 정렬 (쿼리로 시작하는 것 우선, 그다음 역 이름 순, 그다음 호선 순)
+    final filtered = stations.where((station) {
+      final name = station.stationName.toLowerCase();
+      final line = station.lineName.toLowerCase();
+      final label = _stationLabel(station).toLowerCase();
+
+      // 모든 단어가 역 이름, 호선 또는 전체 레이블 중 하나에 포함되어야 함
+      return words.every((word) {
+        String wordWithoutYeok = word;
+        if (wordWithoutYeok.length > 1 && wordWithoutYeok.endsWith('역')) {
+          wordWithoutYeok =
+              wordWithoutYeok.substring(0, wordWithoutYeok.length - 1);
+        }
+
+        return name.contains(word) ||
+            name.contains(wordWithoutYeok) ||
+            line.contains(word) ||
+            label.contains(word);
+      });
+    }).toList();
+
+    // 정렬 우선순위:
+    // 1. 역 이름이 검색어와 정확히 일치 (또는 '역'만 뺀 상태와 일치)
+    // 2. 가나다순
     filtered.sort((a, b) {
-      final aStarts = a.stationName.startsWith(normalizedQuery);
-      final bStarts = b.stationName.startsWith(normalizedQuery);
+      bool aExact = a.stationName == normalizedQuery ||
+          (normalizedQuery.endsWith('역') &&
+              normalizedQuery.length > 1 &&
+              a.stationName ==
+                  normalizedQuery.substring(0, normalizedQuery.length - 1));
+      bool bExact = b.stationName == normalizedQuery ||
+          (normalizedQuery.endsWith('역') &&
+              normalizedQuery.length > 1 &&
+              b.stationName ==
+                  normalizedQuery.substring(0, normalizedQuery.length - 1));
 
-      if (aStarts && !bStarts) return -1;
-      if (!aStarts && bStarts) return 1;
+      if (aExact && !bExact) return -1;
+      if (!aExact && bExact) return 1;
 
       int nameCompare = a.stationName.compareTo(b.stationName);
       if (nameCompare != 0) return nameCompare;
@@ -68,6 +95,11 @@ class _MainScreenState extends State<MainScreen> {
       return null;
     }
 
+    String searchName = normalizedQuery;
+    if (searchName.length > 1 && searchName.endsWith('역')) {
+      searchName = searchName.substring(0, searchName.length - 1);
+    }
+
     // 1. 정확히 '역이름 (호선)' 형태와 일치하는지 확인
     for (final station in stations) {
       if (_stationLabel(station) == normalizedQuery) {
@@ -77,7 +109,8 @@ class _MainScreenState extends State<MainScreen> {
 
     // 2. 역 이름만으로 검색 (중복될 경우 첫 번째 반환)
     for (final station in stations) {
-      if (station.stationName == normalizedQuery) {
+      if (station.stationName == normalizedQuery ||
+          station.stationName == searchName) {
         return station;
       }
     }
@@ -597,12 +630,12 @@ class _MainScreenState extends State<MainScreen> {
                 Row(
                   key: _journeySectionKey,
                   children: [
-                    const Icon(Icons.directions_subway, color: Colors.green),
+                    const Icon(Icons.directions_subway, color: Colors.green, size: 20),
                     const SizedBox(width: 8),
                     const Text(
                       '환승 및 도착지 연계 정보',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -647,7 +680,7 @@ class _MainScreenState extends State<MainScreen> {
                                         '환승역: $transferStationName',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 15,
+                                          fontSize: 20,
                                         ),
                                       ),
                                       const Spacer(),
@@ -687,10 +720,10 @@ class _MainScreenState extends State<MainScreen> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                '${arrivalStation!.stationName}역 빠른 하차',
+                                '${arrivalStation!.stationName}${arrivalStation!.stationName.endsWith('역') ? '' : '역'} 빠른 하차',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 15,
+                                  fontSize: 20,
                                 ),
                               ),
                               const Spacer(),
@@ -725,11 +758,11 @@ class _MainScreenState extends State<MainScreen> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                '${arrivalStation!.stationName}역 '
+                                '${arrivalStation!.stationName}${arrivalStation!.stationName.endsWith('역') ? '' : '역'} '
                                 '${getExitForTransit(arrivalStation!)} 연계 버스',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 15,
+                                  fontSize: 20,
                                 ),
                               ),
                             ],
@@ -745,7 +778,7 @@ class _MainScreenState extends State<MainScreen> {
                                   '연계 버스 정보가 없습니다.',
                                   style: TextStyle(
                                     color: Colors.grey.shade600,
-                                    fontSize: 13,
+                                    fontSize: 20,
                                   ),
                                 );
                               }
@@ -771,7 +804,7 @@ class _MainScreenState extends State<MainScreen> {
                                         child: Text(
                                           bus,
                                           style: TextStyle(
-                                            fontSize: 12,
+                                            fontSize: 20,
                                             color: bus.contains('광역')
                                                 ? Colors.red
                                                 : (bus.contains('지선')
