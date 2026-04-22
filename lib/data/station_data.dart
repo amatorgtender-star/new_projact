@@ -38,7 +38,7 @@ String getTransferStation(SubwayStation from, SubwayStation to) {
       }
     }
   }
-  
+
   return '환승역 미확인';
 }
 
@@ -138,6 +138,27 @@ const List<SubwayStation> stations = [
   SubwayStation(stationName: '불광', lineName: '3호선', stationCode: '0311'),
   SubwayStation(stationName: '독립문', lineName: '3호선', stationCode: '0313'),
 
+  // 4호선
+  SubwayStation(stationName: '수유', lineName: '4호선', stationCode: '0414'),
+  SubwayStation(stationName: '명동', lineName: '4호선', stationCode: '0424'),
+  SubwayStation(stationName: '사당', lineName: '4호선', stationCode: '0433'),
+  SubwayStation(stationName: '혜화', lineName: '4호선', stationCode: '0420'),
+
+  // 5호선
+  SubwayStation(stationName: '광화문', lineName: '5호선', stationCode: '0533'),
+  SubwayStation(stationName: '여의도', lineName: '5호선', stationCode: '0526'),
+  SubwayStation(stationName: '김포공항', lineName: '5호선', stationCode: '0512'),
+
+  // 7호선
+  SubwayStation(stationName: '건대입구', lineName: '7호선', stationCode: '0727'),
+  SubwayStation(stationName: '고속터미널', lineName: '7호선', stationCode: '0734'),
+  SubwayStation(stationName: '노원', lineName: '7호선', stationCode: '0713'),
+
+  // 8호선
+  SubwayStation(stationName: '문정', lineName: '8호선', stationCode: '0818'),
+  SubwayStation(stationName: '장지', lineName: '8호선', stationCode: '0819'),
+  SubwayStation(stationName: '복정', lineName: '8호선', stationCode: '0820'),
+
   // 9호선
   SubwayStation(stationName: '등촌', lineName: '9호선', stationCode: '0911'),
   SubwayStation(stationName: '종합운동장', lineName: '9호선', stationCode: '0920'),
@@ -161,25 +182,4 @@ const List<SubwayStation> stations = [
   SubwayStation(stationName: '시흥시청', lineName: '서해선', stationCode: '3109'),
   SubwayStation(stationName: '시우', lineName: '서해선', stationCode: '3110'),
   SubwayStation(stationName: '원시', lineName: '서해선', stationCode: '3111'),
-
-  // 4호선 추가
-  SubwayStation(stationName: '수유', lineName: '4호선', stationCode: '0414'),
-  SubwayStation(stationName: '명동', lineName: '4호선', stationCode: '0424'),
-  SubwayStation(stationName: '사당', lineName: '4호선', stationCode: '0433'),
-  SubwayStation(stationName: '혜화', lineName: '4호선', stationCode: '0420'),
-
-  // 5호선 추가
-  SubwayStation(stationName: '광화문', lineName: '5호선', stationCode: '0533'),
-  SubwayStation(stationName: '여의도', lineName: '5호선', stationCode: '0526'),
-  SubwayStation(stationName: '김포공항', lineName: '5호선', stationCode: '0512'),
-
-  // 7호선 추가
-  SubwayStation(stationName: '건대입구', lineName: '7호선', stationCode: '0727'),
-  SubwayStation(stationName: '고속터미널', lineName: '7호선', stationCode: '0734'),
-  SubwayStation(stationName: '노원', lineName: '7호선', stationCode: '0713'),
-
-  // 8호선 추가
-  SubwayStation(stationName: '문정', lineName: '8호선', stationCode: '0818'),
-  SubwayStation(stationName: '장지', lineName: '8호선', stationCode: '0819'),
-  SubwayStation(stationName: '복정', lineName: '8호선', stationCode: '0820'),
 ];

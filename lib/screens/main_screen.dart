@@ -348,13 +348,9 @@ class _MainScreenState extends State<MainScreen> {
       focusNode: focusNode,
       displayStringForOption: (s) => s.stationName,
       optionsBuilder: (value) {
-        if (value.text.isEmpty) return const Iterable<SubwayStation>.empty();
-        return stations.where(
-          (s) =>
-              s.stationName.contains(value.text) ||
-              s.lineName.contains(value.text),
-        );
+        return _filterStations(value.text);
       },
+
       onSelected: onSelected,
       fieldViewBuilder:
           (context, fieldController, fieldFocusNode, onSubmitted) {

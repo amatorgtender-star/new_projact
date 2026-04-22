@@ -11,7 +11,6 @@ class SubwayStation {
   });
 }
 
-
 class ArrivalInfo {
   final String currentTrainStatus; // arvlMsg2 - 현재 위치 (예: "당역 진입", "2분 30초 후")
   final String? positionDetail; // arvlMsg3 - 이전역 출발 정보
@@ -95,23 +94,35 @@ class ArrivalInfo {
 }
 
 class TrainSchedule {
-  final String time; // ARRIVETIME (HH:MM)
-  final String destination; // SUBWAYNAME
+  final String time; // HH:MM
+  final String destination;
   final String type; // 급행 / 일반
+  final bool isExpress;
 
   const TrainSchedule({
     required this.time,
     required this.destination,
     required this.type,
+    this.isExpress = false,
   });
 
   factory TrainSchedule.fromJson(Map<String, dynamic> json) {
-    final raw = json['ARRIVETIME'] as String? ?? '';
-    final time = raw.length >= 5 ? raw.substring(0, 5) : raw;
+    // LEFTTIME이 있으면 사용, 없으면 ARRIVETIME 사용
+    final leftTime = json['LEFTTIME'] as String? ?? '';
+    final arriveTime = json['ARRIVETIME'] as String? ?? '';
+    final rawTime = leftTime.isNotEmpty && leftTime != '00:00:00'
+        ? leftTime
+        : arriveTime;
+
+    final time = rawTime.length >= 5 ? rawTime.substring(0, 5) : rawTime;
+    final expressYn = json['EXPRESS_YN'] as String? ?? 'D';
+    final isExpress = expressYn == 'G';
+
     return TrainSchedule(
       time: time,
       destination: json['SUBWAYNAME'] as String? ?? '',
-      type: '일반',
+      type: isExpress ? '급행' : '일반',
+      isExpress: isExpress,
     );
   }
 }

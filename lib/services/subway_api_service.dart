@@ -77,18 +77,19 @@ class SubwayApiService {
         final hour = 8 + (index ~/ 2);
         final minute = (index % 2) * 30 + 5;
         return TrainSchedule(
-          time: '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}',
+          time:
+              '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}',
           destination: direction == 1 ? '인천/신창' : '의정부/광운대',
           type: index % 5 == 0 ? '급행' : '일반',
         );
       });
     }
 
-    final day = dayType ?? _currentDayType();
+    final day = dayType ?? currentDayType();
     final uri = Uri.parse(
       'http://openapi.seoul.go.kr:8088/$_timetableApiKey'
       '/json/SearchSTNTimeTableByIDService/1/200'
-      '/$stationCode/$direction/$day',
+      '/$stationCode/$day/$direction',
     );
     final response = await http.get(uri);
 
@@ -99,10 +100,17 @@ class SubwayApiService {
     final data = json.decode(response.body) as Map<String, dynamic>;
     final service =
         data['SearchSTNTimeTableByIDService'] as Map<String, dynamic>?;
-    if (service == null) throw Exception('시간표 데이터 없음');
+
+    // 데이터 자체가 없는 경우 (키가 누락된 경우 포함) 빈 리스트 반환
+    if (service == null) {
+      return [];
+    }
 
     final result = service['RESULT'] as Map<String, dynamic>?;
     if (result != null && result['CODE'] != 'INFO-000') {
+      if (result['CODE'] == 'INFO-200') {
+        return [];
+      }
       throw Exception(result['MESSAGE'] as String? ?? '시간표 조회 실패');
     }
 
@@ -113,7 +121,7 @@ class SubwayApiService {
         .toList();
   }
 
-  static int _currentDayType() {
+  static int currentDayType() {
     final weekday = DateTime.now().weekday;
     if (weekday == DateTime.saturday) return 2;
     if (weekday == DateTime.sunday) return 3;
