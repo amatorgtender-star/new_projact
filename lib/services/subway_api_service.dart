@@ -5,10 +5,10 @@ import '../models/subway_models.dart';
 class SubwayApiService {
   // ── API 키 설정 ──────────────────────────────────────────────────────────────
   // 실시간 도착: 서울교통공사 (https://data.seoul.go.kr)
-  static const String _realtimeApiKey = 'YOUR_REALTIME_API_KEY';
+  static const String _realtimeApiKey = '7a4555505767746538396c53637555';
 
   // 정적 시간표: 서울 열린데이터광장 (https://data.seoul.go.kr)
-  static const String _timetableApiKey = 'YOUR_TIMETABLE_API_KEY';
+  static const String _timetableApiKey = '416d7254536774653131334f41454d51';
   // ─────────────────────────────────────────────────────────────────────────────
 
   /// 실시간 도착 정보 조회
@@ -45,8 +45,9 @@ class SubwayApiService {
 
     final uri = Uri.parse(
       'http://swopenapi.seoul.go.kr/api/subway/$_realtimeApiKey'
-      '/json/realtimeStationArrival/0/20/$stationName',
+      '/json/realtimeStationArrival/1/10/$stationName',
     );
+
     final response = await http.get(uri);
 
     if (response.statusCode != 200) {
@@ -60,10 +61,7 @@ class SubwayApiService {
     }
 
     final list = (data['realtimeArrivalList'] as List?) ?? [];
-    return list
-        .cast<Map<String, dynamic>>()
-        .map(ArrivalInfo.fromJson)
-        .toList();
+    return list.cast<Map<String, dynamic>>().map(ArrivalInfo.fromJson).toList();
   }
 
   /// 정적 시간표 조회
