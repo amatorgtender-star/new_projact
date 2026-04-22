@@ -18,10 +18,17 @@ class _MainScreenState extends State<MainScreen> {
   String weatherTemp = "";
   SubwayStation? departureStation;
   SubwayStation? arrivalStation;
+  StationWeather? _departureWeather;
+  StationWeather? _arrivalWeather;
   List<ArrivalInfo> _arrivals = [];
   bool _isLoadingArrival = false;
   String? _arrivalError;
   Timer? _refreshTimer;
+
+  List<ArrivalInfo> _arrivalStationArrivals = [];
+  bool _isLoadingArrivalStation = false;
+  String? _arrivalStationError;
+  Timer? _arrivalStationRefreshTimer;
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _infoSectionKey = GlobalKey();
@@ -39,6 +46,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _arrivalStationRefreshTimer?.cancel();
     _scrollController.dispose();
     _departureController.dispose();
     _arrivalController.dispose();
@@ -86,6 +94,7 @@ class _MainScreenState extends State<MainScreen> {
       departureStation = newStation;
       _arrivals = [];
       _arrivalError = null;
+      _departureWeather = null;
     });
     _refreshTimer?.cancel();
     _loadArrival(newStation);
@@ -93,6 +102,9 @@ class _MainScreenState extends State<MainScreen> {
       const Duration(seconds: 30),
       (_) => _loadArrival(newStation),
     );
+    WeatherService.fetchStationWeather(newStation.stationName).then((w) {
+      if (mounted && w != null) setState(() => _departureWeather = w);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final ctx = _infoSectionKey.currentContext;
@@ -106,10 +118,47 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  Future<void> _loadArrivalStationInfo(SubwayStation station) async {
+    setState(() {
+      _isLoadingArrivalStation = true;
+      _arrivalStationError = null;
+    });
+    try {
+      final arrivals = await SubwayApiService.fetchRealtimeArrival(station.stationName);
+      if (mounted) {
+        setState(() {
+          _arrivalStationArrivals = arrivals;
+          _isLoadingArrivalStation = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _arrivalStationError = e.toString();
+          _isLoadingArrivalStation = false;
+        });
+      }
+    }
+  }
+
   void updateArrivalStation(SubwayStation newStation) {
     _arrivalController.text = newStation.stationName;
     _arrivalFocusNode.unfocus();
-    setState(() => arrivalStation = newStation);
+    setState(() {
+      arrivalStation = newStation;
+      _arrivalStationArrivals = [];
+      _arrivalStationError = null;
+      _arrivalWeather = null;
+    });
+    _arrivalStationRefreshTimer?.cancel();
+    _loadArrivalStationInfo(newStation);
+    _arrivalStationRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _loadArrivalStationInfo(newStation),
+    );
+    WeatherService.fetchStationWeather(newStation.stationName).then((w) {
+      if (mounted && w != null) setState(() => _arrivalWeather = w);
+    });
   }
 
   Widget _buildStationSearch({
@@ -207,12 +256,19 @@ class _MainScreenState extends State<MainScreen> {
     required String direction,
     required ArrivalInfo? current,
     ArrivalInfo? next,
+    ArrivalInfo? third,
   }) {
+    final trains = [
+      if (current != null) (label: '1번째', info: current),
+      if (next != null) (label: '2번째', info: next),
+      if (third != null) (label: '3번째', info: third),
+    ];
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -226,43 +282,89 @@ class _MainScreenState extends State<MainScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Text(
                   '${current?.destination ?? '-'}행',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  current?.remainingText ?? '정보 없음',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+            if (trains.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  '정보 없음',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '다음 열차',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                    ),
-                    Text(
-                      next?.remainingText ?? '-',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+              )
+            else ...[
+              const SizedBox(height: 10),
+              ...trains.asMap().entries.map((entry) {
+                final i = entry.key;
+                final t = entry.value;
+                final isFirst = i == 0;
+                return Padding(
+                  padding: EdgeInsets.only(bottom: isFirst ? 10.0 : 6.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 52,
+                        margin: const EdgeInsets.only(top: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isFirst
+                              ? Colors.blue.shade50
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          t.label,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isFirst
+                                ? Colors.blue.shade700
+                                : Colors.grey.shade600,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              t.info.remainingText,
+                              style: TextStyle(
+                                fontSize: isFirst ? 20 : 15,
+                                fontWeight: isFirst
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                                color: isFirst
+                                    ? Colors.black87
+                                    : Colors.grey.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              t.info.currentTrainStatus,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
           ],
         ),
       ),
@@ -505,6 +607,25 @@ class _MainScreenState extends State<MainScreen> {
                       departureStation!.lineName,
                       style: const TextStyle(color: Colors.grey, fontSize: 14),
                     ),
+                    if (_departureWeather != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${_departureWeather!.icon} ${_departureWeather!.temp}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -534,15 +655,106 @@ class _MainScreenState extends State<MainScreen> {
                     direction: '상행 ↑',
                     current: upbound.isNotEmpty ? upbound[0] : null,
                     next: upbound.length > 1 ? upbound[1] : null,
+                    third: upbound.length > 2 ? upbound[2] : null,
                   ),
                   const SizedBox(height: 8),
                   _buildArrivalCard(
                     direction: '하행 ↓',
                     current: downbound.isNotEmpty ? downbound[0] : null,
                     next: downbound.length > 1 ? downbound[1] : null,
+                    third: downbound.length > 2 ? downbound[2] : null,
                   ),
                 ],
                 const SizedBox(height: 24),
+
+                // 도착역 실시간 도착 정보
+                if (arrivalStation != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.place, color: Colors.red),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '도착역 실시간 도착 정보',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const Spacer(),
+                      Text(
+                        arrivalStation!.lineName,
+                        style: const TextStyle(color: Colors.grey, fontSize: 14),
+                      ),
+                      if (_arrivalWeather != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${_arrivalWeather!.icon} ${_arrivalWeather!.temp}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.red.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_isLoadingArrivalStation)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_arrivalStationError != null)
+                    Card(
+                      color: Colors.red.shade50,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline, color: Colors.red),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(_arrivalStationError!,
+                                  style: const TextStyle(color: Colors.red)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else ...[
+                    Builder(builder: (context) {
+                      final aUp = _arrivalStationArrivals
+                          .where((a) => a.updnLine.contains('상행') || a.updnLine.contains('내선'))
+                          .toList();
+                      final aDown = _arrivalStationArrivals
+                          .where((a) => a.updnLine.contains('하행') || a.updnLine.contains('외선'))
+                          .toList();
+                      return Column(
+                        children: [
+                          _buildArrivalCard(
+                            direction: '상행 ↑',
+                            current: aUp.isNotEmpty ? aUp[0] : null,
+                            next: aUp.length > 1 ? aUp[1] : null,
+                            third: aUp.length > 2 ? aUp[2] : null,
+                          ),
+                          const SizedBox(height: 8),
+                          _buildArrivalCard(
+                            direction: '하행 ↓',
+                            current: aDown.isNotEmpty ? aDown[0] : null,
+                            next: aDown.length > 1 ? aDown[1] : null,
+                            third: aDown.length > 2 ? aDown[2] : null,
+                          ),
+                        ],
+                      );
+                    }),
+                  ],
+                  const SizedBox(height: 24),
+                ],
 
                 // 환승 및 도착지 연계 정보 (도착역 선택 시)
                 if (arrivalStation != null) ...[
