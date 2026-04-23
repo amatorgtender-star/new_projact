@@ -33,8 +33,6 @@ class _MainScreenState extends State<MainScreen> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _infoSectionKey = GlobalKey();
   final GlobalKey _journeySectionKey = GlobalKey();
-  final bool _departureJustSelected = false;
-  final bool _arrivalJustSelected = false;
   final TextEditingController _departureController = TextEditingController();
   final TextEditingController _arrivalController = TextEditingController();
   final FocusNode _departureFocusNode = FocusNode();
@@ -539,53 +537,6 @@ class _MainScreenState extends State<MainScreen> {
               }),
             ],
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOptionsList(
-    BuildContext context,
-    AutocompleteOnSelected<SubwayStation> onSelected,
-    Iterable<SubwayStation> options,
-  ) {
-    return Align(
-      alignment: Alignment.topLeft,
-      child: Material(
-        elevation: 4.0,
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          width: MediaQuery.of(context).size.width - 32,
-          child: ListView.separated(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            itemCount: options.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final option = options.elementAt(index);
-              return ListTile(
-                title: Text(
-                  option.stationName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    option.lineName,
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                ),
-                onTap: () => onSelected(option),
-              );
-            },
-          ),
         ),
       ),
     );

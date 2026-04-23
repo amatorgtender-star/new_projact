@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
-
-// 우리가 만든 main_screen.dart를 불러옵니다.
+import 'data/station_data.dart';
 import 'screens/main_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 역 목록 실시간 로드
+  await initializeStations();
+
   runApp(const SubwayApp());
 }
 

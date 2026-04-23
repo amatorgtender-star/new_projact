@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/subway_models.dart';
 
@@ -56,8 +57,12 @@ class SubwayApiService {
 
     final data = json.decode(response.body) as Map<String, dynamic>;
     final errorMsg = data['errorMessage'] as Map<String, dynamic>?;
-    if (errorMsg != null && errorMsg['status'] != 200) {
-      throw Exception(errorMsg['message'] as String? ?? '도착 정보 조회 실패');
+    if (errorMsg != null) {
+      final status =
+          int.tryParse(errorMsg['status']?.toString() ?? '200') ?? 200;
+      if (status != 200) {
+        throw Exception(errorMsg['message'] as String? ?? '도착 정보 조회 실패');
+      }
     }
 
     final list = (data['realtimeArrivalList'] as List?) ?? [];
@@ -73,14 +78,16 @@ class SubwayApiService {
     if (_timetableApiKey == 'YOUR_TIMETABLE_API_KEY') {
       // API 키가 없을 때 더미 데이터 반환
       await Future.delayed(const Duration(milliseconds: 500));
-      return List.generate(10, (index) {
-        final hour = 8 + (index ~/ 2);
-        final minute = (index % 2) * 30 + 5;
+      return List.generate(20, (index) {
+        final hour = (5 + index ~/ 4);
+        final minute = (index % 4) * 15;
+        final isExpress = index % 3 == 0;
         return TrainSchedule(
           time:
               '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}',
           destination: direction == 1 ? '인천/신창' : '의정부/광운대',
-          type: index % 5 == 0 ? '급행' : '일반',
+          type: isExpress ? '급행' : '일반',
+          isExpress: isExpress,
         );
       });
     }
@@ -88,7 +95,7 @@ class SubwayApiService {
     final day = dayType ?? currentDayType();
     final uri = Uri.parse(
       'http://openapi.seoul.go.kr:8088/$_timetableApiKey'
-      '/json/SearchSTNTimeTableByIDService/1/200'
+      '/json/SearchSTNTimeTableByIDService/1/500'
       '/$stationCode/$day/$direction',
     );
     final response = await http.get(uri);
@@ -119,6 +126,106 @@ class SubwayApiService {
         .cast<Map<String, dynamic>>()
         .map(TrainSchedule.fromJson)
         .toList();
+  }
+
+  /// 전체 지하철역 마스터 정보 조회 (페이지네이션으로 전체 수집)
+  static Future<List<SubwayStation>> fetchAllStations() async {
+    const int pageSize = 500;
+    final List<SubwayStation> fetchedStations = [];
+    final Set<String> seen = {};
+    int start = 1;
+    int pageNum = 1;
+
+    debugPrint('[fetchAllStations] 시작');
+    try {
+      while (true) {
+        final end = start + pageSize - 1;
+        final uri = Uri.parse(
+          'http://openapi.seoul.go.kr:8088/$_timetableApiKey'
+          '/json/SearchSTNBySubwayLineInfo/$start/$end/',
+        );
+
+        debugPrint('[fetchAllStations] 페이지 $pageNum 요청: $start~$end');
+        final response = await http.get(uri);
+        debugPrint('[fetchAllStations] HTTP ${response.statusCode}');
+
+        if (response.statusCode != 200) {
+          debugPrint('[fetchAllStations] HTTP 오류로 중단');
+          break;
+        }
+
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final service =
+            data['SearchSTNBySubwayLineInfo'] as Map<String, dynamic>?;
+        if (service == null) {
+          debugPrint(
+            '[fetchAllStations] SearchSTNBySubwayLineService 키 없음 — 응답: ${response.body.substring(0, response.body.length.clamp(0, 200))}',
+          );
+          break;
+        }
+
+        final result = service['RESULT'] as Map<String, dynamic>?;
+        final code = result?['CODE'] as String? ?? '';
+        final message = result?['MESSAGE'] as String? ?? '';
+        debugPrint('[fetchAllStations] RESULT CODE=$code MESSAGE=$message');
+
+        if (code.isNotEmpty && code != 'INFO-000') {
+          debugPrint('[fetchAllStations] 데이터 종료 (CODE=$code)');
+          break;
+        }
+
+        final rows = (service['row'] as List?) ?? [];
+        debugPrint('[fetchAllStations] 페이지 $pageNum: ${rows.length}행 수신');
+        if (rows.isEmpty) break;
+
+        // 첫 번째 행 샘플 출력으로 필드명 확인
+        if (pageNum == 1 && rows.isNotEmpty) {
+          debugPrint('[fetchAllStations] 첫 행 샘플: ${rows.first}');
+        }
+
+        for (var row in rows) {
+          final name = row['STATION_NM'] as String? ?? '';
+          final rawLine = row['LINE_NUM'] as String? ?? '';
+          final code = row['STATION_CD'] as String? ?? '';
+
+          if (name.isEmpty || code.isEmpty) continue;
+
+          // API가 "01호선", "02호선" 형식으로 반환하는 경우 정규화
+          final line = rawLine.replaceFirstMapped(
+            RegExp(r'^0+(\d)'),
+            (m) => m.group(1)!,
+          );
+
+          final key = '$name|$line';
+          if (!seen.contains(key)) {
+            seen.add(key);
+            fetchedStations.add(
+              SubwayStation(
+                stationName: name,
+                lineName: line,
+                stationCode: code,
+              ),
+            );
+          }
+        }
+
+        debugPrint('[fetchAllStations] 누적: ${fetchedStations.length}역');
+
+        if (rows.length < pageSize) {
+          debugPrint('[fetchAllStations] 마지막 페이지 도달');
+          break;
+        }
+        start += pageSize;
+        pageNum++;
+      }
+
+      fetchedStations.sort((a, b) => a.stationName.compareTo(b.stationName));
+      debugPrint('[fetchAllStations] 완료: 총 ${fetchedStations.length}역');
+      return fetchedStations;
+    } catch (e, st) {
+      debugPrint('[fetchAllStations] 예외: $e\n$st');
+      return fetchedStations;
+    }
   }
 
   static int currentDayType() {

@@ -99,6 +99,7 @@ class _TimetableScreenState extends State<TimetableScreen>
     setState(() {
       isLoading = true;
       error = null;
+      realtimeArrivals = [];
     });
     try {
       final results = await Future.wait([
@@ -110,11 +111,6 @@ class _TimetableScreenState extends State<TimetableScreen>
         SubwayApiService.fetchTimetable(
           widget.station.stationCode,
           direction: 2,
-          dayType: _dayType,
-        ),
-        SubwayApiService.fetchTimetable(
-          widget.station.stationCode,
-          direction: 3,
           dayType: _dayType,
         ),
         SubwayApiService.fetchRealtimeArrival(widget.station.stationName),
@@ -333,7 +329,7 @@ class _TimetableScreenState extends State<TimetableScreen>
             controller: controller,
             padding: const EdgeInsets.all(16),
             itemCount: schedules.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final s = schedules[index];
               final isNext = index == nextIndex;

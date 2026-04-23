@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(node -e ' *)",
-      "Bash(flutter analyze *)"
+      "Bash(flutter analyze *)",
+      "WebFetch(domain:openapi.seoul.go.kr)",
+      "Bash(curl -s \"http://openapi.seoul.go.kr:8088/416d7254536774653131334f41454d51/json/SearchSTNBySubwayLineService/1/10/\")",
+      "Bash(curl -s \"http://openapi.seoul.go.kr:8088/416d7254536774653131334f41454d51/json/SearchSTNTimeTableByIDService/1/3/0150/1/1/\")",
+      "Bash(curl -s \"http://openapi.seoul.go.kr:8088/416d7254536774653131334f41454d51/json/SearchSTNTimeTableByIDService/1/500/0150/1/1/\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); svc=d.get\\('SearchSTNTimeTableByIDService',{}\\); print\\('total:',svc.get\\('list_total_count'\\)\\); print\\('RESULT:',svc.get\\('RESULT'\\)\\); rows=svc.get\\('row',[]\\); print\\('rows수신:',len\\(rows\\)\\); print\\('첫행:',rows[0] if rows else 'none'\\)\")"
     ]
   }
 }

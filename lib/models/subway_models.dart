@@ -80,7 +80,6 @@ class ArrivalInfo {
       '신림선': '1094',
       '경춘선': '1067',
       '경강선': '1081',
-      '경부선': '1001',
       '중앙선': '1061',
     };
 
@@ -108,19 +107,39 @@ class TrainSchedule {
 
   factory TrainSchedule.fromJson(Map<String, dynamic> json) {
     // LEFTTIME이 있으면 사용, 없으면 ARRIVETIME 사용
-    final leftTime = json['LEFTTIME'] as String? ?? '';
-    final arriveTime = json['ARRIVETIME'] as String? ?? '';
-    final rawTime = leftTime.isNotEmpty && leftTime != '00:00:00'
+    final leftTime = json['LEFTTIME']?.toString() ?? '';
+    final arriveTime = json['ARRIVETIME']?.toString() ?? '';
+    final rawTime = (leftTime.isNotEmpty && leftTime != '00:00:00')
         ? leftTime
         : arriveTime;
 
     final time = rawTime.length >= 5 ? rawTime.substring(0, 5) : rawTime;
-    final expressYn = json['EXPRESS_YN'] as String? ?? 'D';
-    final isExpress = expressYn == 'G';
+
+    // 종착역명: API 실제 필드는 SUBWAYENAME (SUBWAYNAME과 다름)
+    final destination =
+        (json['SUBWAYENAME']?.toString() ??
+                json['SUBWAYSTNNAME']?.toString() ??
+                json['DESTSTATION_NM']?.toString() ??
+                json['SUBWAYSTN_NM']?.toString() ??
+                json['SUBWAYNAME']?.toString() ??
+                '')
+            .trim();
+
+    // EXPRESS_YN: G(급행), Y(급행), N(일반), D(직통/일반)
+    // DIRECT_YN: 1(급행), 2(특급), 0(일반)
+    final directYn = (json['DIRECT_YN']?.toString() ?? '').trim();
+    final expressYn = (json['EXPRESS_YN']?.toString() ?? '').trim();
+
+    bool isExpress = false;
+    if (directYn.isNotEmpty) {
+      isExpress = directYn == '1' || directYn == '2';
+    } else if (expressYn.isNotEmpty) {
+      isExpress = expressYn == 'G' || expressYn == 'Y' || expressYn == '1';
+    }
 
     return TrainSchedule(
       time: time,
-      destination: json['SUBWAYNAME'] as String? ?? '',
+      destination: destination.isNotEmpty ? destination : '종착역',
       type: isExpress ? '급행' : '일반',
       isExpress: isExpress,
     );
