@@ -33,10 +33,24 @@ class ArrivalInfo {
   });
 
   factory ArrivalInfo.fromJson(Map<String, dynamic> json) {
+    String status = json['arvlMsg2'] as String? ?? '정보 없음';
+    String dest = json['bstatnNm'] as String? ?? '종착역';
+
+    // 역명 표준화 (성북 -> 광운대 등)
+    const stationNameMap = {
+      '성북': '광운대',
+      '신성북': '광운대',
+    };
+
+    stationNameMap.forEach((old, newName) {
+      status = status.replaceAll(old, newName);
+      dest = dest.replaceAll(old, newName);
+    });
+
     return ArrivalInfo(
-      currentTrainStatus: json['arvlMsg2'] as String? ?? '정보 없음',
+      currentTrainStatus: status,
       positionDetail: json['arvlMsg3'] as String?,
-      destination: json['bstatnNm'] as String? ?? '종착역',
+      destination: dest,
       trainLineName: json['trainLineNm'] as String? ?? '',
       updnLine: json['updnLine'] as String? ?? '',
       subwayId: json['subwayId'] as String? ?? '',
@@ -47,12 +61,33 @@ class ArrivalInfo {
 
   String get remainingText {
     if (arvlCd == 1 || arvlCd == 0) return '곧 도착';
-    if (remainingSeconds <= 0) return currentTrainStatus;
-    final m = remainingSeconds ~/ 60;
-    final s = remainingSeconds % 60;
-    if (m == 0) return '$s초 후';
-    if (s == 0) return '$m분 후';
-    return '$m분 $s초 후';
+    if (arvlCd == 4) return '전역 진입';
+    if (arvlCd == 5) return '전역 도착';
+    if (arvlCd == 3) return '전역 출발';
+
+    if (remainingSeconds > 0) {
+      final m = remainingSeconds ~/ 60;
+      final s = remainingSeconds % 60;
+      if (m == 0) return '$s초 후';
+      if (s == 0) return '$m분 후';
+      return '$m분 $s초 후';
+    }
+
+    // currentTrainStatus (arvlMsg2) 정제
+    String msg = currentTrainStatus;
+    
+    // "[7]번째 전역 (행신)" -> "7번째 전역 (행신)"
+    msg = msg.replaceAll('[', '').replaceAll(']', '');
+    
+    // "문산행 7번째 전역 (행신)" -> "7번째 전역 (행신)" (목적지 중복 제거)
+    if (msg.contains('행')) {
+      final parts = msg.split(' ');
+      if (parts.isNotEmpty && parts[0].endsWith('행')) {
+        msg = parts.skip(1).join(' ');
+      }
+    }
+
+    return msg;
   }
 
   bool matchesLine(String lineName) {
@@ -81,6 +116,12 @@ class ArrivalInfo {
       '경춘선': '1067',
       '경강선': '1081',
       '중앙선': '1061',
+      '인천1호선': '1069',
+      '인천2호선': '1071',
+      '의정부경전철': '1079',
+      '에버라인': '1078',
+      '김포골드라인': '1091',
+      'GTX-A': '1032',
     };
 
     final expectedSubwayId = subwayIdByLineName[normalizedLineName];
@@ -125,16 +166,16 @@ class TrainSchedule {
                 '')
             .trim();
 
-    // EXPRESS_YN: G(급행), Y(급행), N(일반), D(직통/일반)
+    // EXPRESS_YN: G(일반), D(급행/직통), S(급행), Y(급행), N(일반), 1(급행)
     // DIRECT_YN: 1(급행), 2(특급), 0(일반)
     final directYn = (json['DIRECT_YN']?.toString() ?? '').trim();
     final expressYn = (json['EXPRESS_YN']?.toString() ?? '').trim();
 
     bool isExpress = false;
-    if (directYn.isNotEmpty) {
+    if (directYn.isNotEmpty && directYn != '0' && directYn != 'null') {
       isExpress = directYn == '1' || directYn == '2';
-    } else if (expressYn.isNotEmpty) {
-      isExpress = expressYn == 'G' || expressYn == 'Y' || expressYn == '1';
+    } else if (expressYn.isNotEmpty && expressYn != 'G' && expressYn != 'N' && expressYn != 'null') {
+      isExpress = expressYn == 'D' || expressYn == 'S' || expressYn == '1' || expressYn == 'Y';
     }
 
     return TrainSchedule(

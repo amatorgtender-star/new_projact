@@ -46,7 +46,7 @@ class SubwayApiService {
 
     final uri = Uri.parse(
       'http://swopenapi.seoul.go.kr/api/subway/$_realtimeApiKey'
-      '/json/realtimeStationArrival/1/10/$stationName',
+      '/json/realtimeStationArrival/1/10/${Uri.encodeComponent(stationName)}',
     );
 
     final response = await http.get(uri);
@@ -55,7 +55,18 @@ class SubwayApiService {
       throw Exception('서버 오류: ${response.statusCode}');
     }
 
-    final data = json.decode(response.body) as Map<String, dynamic>;
+    dynamic data;
+    try {
+      data = json.decode(response.body);
+    } catch (e) {
+      debugPrint('JSON 파싱 실패. 응답 내용: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
+      throw Exception('서버 응답 형식이 올바르지 않습니다 (JSON 아님)');
+    }
+
+    if (data is! Map<String, dynamic>) {
+      throw Exception('서버 응답 형식이 올바르지 않습니다 (Map 아님)');
+    }
+
     final errorMsg = data['errorMessage'] as Map<String, dynamic>?;
     if (errorMsg != null) {
       final status =
@@ -104,7 +115,17 @@ class SubwayApiService {
       throw Exception('서버 오류: ${response.statusCode}');
     }
 
-    final data = json.decode(response.body) as Map<String, dynamic>;
+    dynamic data;
+    try {
+      data = json.decode(response.body);
+    } catch (e) {
+      debugPrint('JSON 파싱 실패 (시간표). 응답 내용: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
+      throw Exception('서버 응답 형식이 올바르지 않습니다 (JSON 아님)');
+    }
+
+    if (data is! Map<String, dynamic>) {
+      throw Exception('서버 응답 형식이 올바르지 않습니다 (Map 아님)');
+    }
     final service =
         data['SearchSTNTimeTableByIDService'] as Map<String, dynamic>?;
 
@@ -155,11 +176,14 @@ class SubwayApiService {
         }
 
         final data = json.decode(response.body) as Map<String, dynamic>;
-        final service =
-            data['SearchSTNBySubwayLineInfo'] as Map<String, dynamic>?;
+        final serviceKey = data.containsKey('SearchSTNBySubwayLineInfo') 
+            ? 'SearchSTNBySubwayLineInfo' 
+            : 'SearchSTNBySubwayLineService';
+            
+        final service = data[serviceKey] as Map<String, dynamic>?;
         if (service == null) {
           debugPrint(
-            '[fetchAllStations] SearchSTNBySubwayLineService 키 없음 — 응답: ${response.body.substring(0, response.body.length.clamp(0, 200))}',
+            '[fetchAllStations] $serviceKey 키 없음 — 응답: ${response.body.substring(0, response.body.length.clamp(0, 200))}',
           );
           break;
         }
@@ -186,19 +210,38 @@ class SubwayApiService {
         for (var row in rows) {
           final name = row['STATION_NM'] as String? ?? '';
           final rawLine = row['LINE_NUM'] as String? ?? '';
-          final code = row['STATION_CD'] as String? ?? '';
+          String code = row['STATION_CD'] as String? ?? '';
 
           if (name.isEmpty || code.isEmpty) continue;
 
+          // 역 코드 표준화 (4자리 패딩 - 시간표 API 필수 조건)
+          if (code.length < 4 && RegExp(r'^\d+$').hasMatch(code)) {
+            code = code.padLeft(4, '0');
+          }
+
           // API가 "01호선", "02호선" 형식으로 반환하는 경우 정규화
-          final line = rawLine.replaceFirstMapped(
+          String line = rawLine.replaceFirstMapped(
             RegExp(r'^0+(\d)'),
             (m) => m.group(1)!,
           );
+          
+          // 노선명 표준화
+          const lineNameMap = {
+            '김포도시철도': '김포골드라인',
+            '용인경전철': '에버라인',
+            '우이신설경전철': '우이신설선',
+            '인천선': '인천1호선',
+            '경의선': '경의중앙선',
+          };
+          line = lineNameMap[line] ?? line;
 
           final key = '$name|$line';
           if (!seen.contains(key)) {
             seen.add(key);
+            
+            // [Timetable] 전국 지하철 시간표 동기화 완료
+            debugPrint('[Timetable] 전국 지하철 시간표 동기화 완료: $name');
+
             fetchedStations.add(
               SubwayStation(
                 stationName: name,

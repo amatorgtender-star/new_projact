@@ -102,25 +102,55 @@ class _TimetableScreenState extends State<TimetableScreen>
       realtimeArrivals = [];
     });
     try {
-      final results = await Future.wait([
+      String? firstError;
+
+      final futures = [
         SubwayApiService.fetchTimetable(
           widget.station.stationCode,
           direction: 1,
           dayType: _dayType,
-        ),
+        ).catchError((e) {
+          debugPrint('상행 시간표 로드 실패: $e');
+          firstError ??= e.toString();
+          return <TrainSchedule>[];
+        }),
         SubwayApiService.fetchTimetable(
           widget.station.stationCode,
           direction: 2,
           dayType: _dayType,
-        ),
-        SubwayApiService.fetchRealtimeArrival(widget.station.stationName),
-      ]);
+        ).catchError((e) {
+          debugPrint('하행 시간표 로드 실패: $e');
+          firstError ??= e.toString();
+          return <TrainSchedule>[];
+        }),
+        SubwayApiService.fetchRealtimeArrival(
+          widget.station.stationName,
+        ).catchError((e) {
+          debugPrint('실시간 정보 로드 실패: $e');
+          // 실시간 정보 실패는 시간표 표시에 치명적이지 않으므로 에러로 기록하지 않음
+          return <ArrivalInfo>[];
+        }),
+      ];
+
+      final results = await Future.wait(futures);
 
       if (mounted) {
         setState(() {
           upSchedules = results[0] as List<TrainSchedule>;
           downSchedules = results[1] as List<TrainSchedule>;
           realtimeArrivals = results[2] as List<ArrivalInfo>;
+
+          // 시간표 데이터가 하나도 없고 에러가 있었다면 에러 표시
+          if (upSchedules.isEmpty &&
+              downSchedules.isEmpty &&
+              firstError != null) {
+            error = firstError;
+          } else if (upSchedules.isEmpty &&
+              downSchedules.isEmpty &&
+              realtimeArrivals.isEmpty) {
+            error = "데이터를 불러올 수 없습니다. 네트워크 연결을 확인해주세요.";
+          }
+
           _calculateNextIndices();
           isLoading = false;
         });
