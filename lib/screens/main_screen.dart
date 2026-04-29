@@ -108,67 +108,6 @@ class _MainScreenState extends State<MainScreen> {
     return filtered;
   }
 
-  SubwayStation? _resolveStationQuery(String query) {
-    final normalizedQuery = query.trim().toLowerCase();
-    if (normalizedQuery.isEmpty) {
-      return null;
-    }
-
-    String searchName = normalizedQuery;
-    if (searchName.length > 1 && searchName.endsWith('역')) {
-      searchName = searchName.substring(0, searchName.length - 1);
-    }
-
-    // 1. 정확히 '역이름 (호선)' 형태와 일치하는지 확인 (대소문자 무시)
-    for (final station in stations) {
-      if (_stationLabel(station).toLowerCase() == normalizedQuery) {
-        return station;
-      }
-    }
-
-    // 2. 역 이름만으로 정확히 일치하는 검색 (중복될 경우 첫 번째 반환하되 필터링 결과 활용)
-    final matches = _filterStations(normalizedQuery).toList();
-    if (matches.isNotEmpty) {
-      // 정확한 이름 매칭이 있으면 그것을 우선 반환
-      for (final s in matches) {
-        if (s.stationName.toLowerCase() == normalizedQuery || 
-            s.stationName.toLowerCase() == searchName) {
-          return s;
-        }
-      }
-      // 아니면 첫 번째 결과 반환
-      return matches.first;
-    }
-
-    return null;
-  }
-
-  void _showStationSearchMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  void _submitDepartureQuery(String query) {
-    final station = _resolveStationQuery(query);
-    if (station == null) {
-      _showStationSearchMessage('출발역을 목록에서 선택하거나 역 이름을 정확히 입력해 주세요.');
-      return;
-    }
-
-    updateDepartureStation(station);
-  }
-
-  void _submitArrivalQuery(String query) {
-    final station = _resolveStationQuery(query);
-    if (station == null) {
-      _showStationSearchMessage('도착역을 목록에서 선택하거나 역 이름을 정확히 입력해 주세요.');
-      return;
-    }
-
-    updateArrivalStation(station);
-  }
-
   bool _isUpboundArrival(ArrivalInfo arrival) {
     final directionText = '${arrival.updnLine} ${arrival.trainLineName}';
     // 2호선 외선은 하행으로 간주하고, 내선은 상행으로 간주하는 일반적 규칙 적용
@@ -499,7 +438,9 @@ class _MainScreenState extends State<MainScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: isFirst ? 16 : 13,
-                                fontWeight: isFirst ? FontWeight.bold : FontWeight.normal,
+                                fontWeight: isFirst
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                               ),
                             ),
                           ),
@@ -517,8 +458,12 @@ class _MainScreenState extends State<MainScreen> {
                         t.info.remainingText,
                         style: TextStyle(
                           fontSize: isFirst ? 18 : 14,
-                          fontWeight: isFirst ? FontWeight.bold : FontWeight.w500,
-                          color: isFirst ? Colors.black87 : Colors.grey.shade700,
+                          fontWeight: isFirst
+                              ? FontWeight.bold
+                              : FontWeight.w500,
+                          color: isFirst
+                              ? Colors.black87
+                              : Colors.grey.shade700,
                         ),
                       ),
                       if (isFirst)
@@ -668,7 +613,10 @@ class _MainScreenState extends State<MainScreen> {
                           Expanded(
                             child: Text(
                               _arrivalError!,
-                              style: const TextStyle(color: Colors.red, fontSize: 16),
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
                         ],
@@ -676,30 +624,30 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                   )
                 else ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildArrivalCard(
-                        direction: '상행 ↑',
-                        current: upbound.isNotEmpty ? upbound[0] : null,
-                        next: upbound.length > 1 ? upbound[1] : null,
-                        third: upbound.length > 2 ? upbound[2] : null,
-                        color: Colors.blue,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildArrivalCard(
+                          direction: '상행 ↑',
+                          current: upbound.isNotEmpty ? upbound[0] : null,
+                          next: upbound.length > 1 ? upbound[1] : null,
+                          third: upbound.length > 2 ? upbound[2] : null,
+                          color: Colors.blue,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildArrivalCard(
-                        direction: '하행 ↓',
-                        current: downbound.isNotEmpty ? downbound[0] : null,
-                        next: downbound.length > 1 ? downbound[1] : null,
-                        third: downbound.length > 2 ? downbound[2] : null,
-                        color: Colors.red,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildArrivalCard(
+                          direction: '하행 ↓',
+                          current: downbound.isNotEmpty ? downbound[0] : null,
+                          next: downbound.length > 1 ? downbound[1] : null,
+                          third: downbound.length > 2 ? downbound[2] : null,
+                          color: Colors.red,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 ],
 
                 // --- 도착역 정보 및 환승/연계 정보 (도착역 선택 시) ---
@@ -770,7 +718,10 @@ class _MainScreenState extends State<MainScreen> {
                             Expanded(
                               child: Text(
                                 _arrivalStationError!,
-                                style: const TextStyle(color: Colors.red, fontSize: 16),
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 16,
+                                ),
                               ),
                             ),
                           ],
@@ -850,7 +801,8 @@ class _MainScreenState extends State<MainScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // 환승 정보 (다른 노선일 때만)
-                          if (departureStation!.lineName != arrivalStation!.lineName) ...[
+                          if (departureStation!.lineName !=
+                              arrivalStation!.lineName) ...[
                             () {
                               final transferStationName = getTransferStation(
                                 departureStation!,
@@ -887,7 +839,9 @@ class _MainScreenState extends State<MainScreen> {
                                           ),
                                           decoration: BoxDecoration(
                                             color: Colors.green.shade50,
-                                            borderRadius: BorderRadius.circular(10),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                           child: Text(
                                             '빠른문: ${getFastExit(transferStation)}',
@@ -965,24 +919,32 @@ class _MainScreenState extends State<MainScreen> {
                           const SizedBox(height: 16),
                           Builder(
                             builder: (context) {
-                              final busMap = getConnectedTransit(arrivalStation!);
+                              final busMap = getConnectedTransit(
+                                arrivalStation!,
+                              );
                               if (busMap.isEmpty) {
                                 return const Text(
                                   '연계 버스 정보가 없습니다.',
-                                  style: TextStyle(color: Colors.grey, fontSize: 18),
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 18,
+                                  ),
                                 );
                               }
-                              
+
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: busMap.entries.map((entry) {
                                   final exitName = entry.key;
                                   final buses = entry.value;
-                                  
+
                                   return Padding(
-                                    padding: const EdgeInsets.only(bottom: 16.0),
+                                    padding: const EdgeInsets.only(
+                                      bottom: 16.0,
+                                    ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           '• $exitName',
@@ -998,19 +960,30 @@ class _MainScreenState extends State<MainScreen> {
                                           runSpacing: 8,
                                           children: buses.map((bus) {
                                             Color busColor = Colors.blue;
-                                            if (bus.contains('광역')) busColor = Colors.red;
-                                            if (bus.contains('지선')) busColor = Colors.green;
-                                            if (bus.contains('마을')) busColor = Colors.orange;
+                                            if (bus.contains('광역'))
+                                              busColor = Colors.red;
+                                            if (bus.contains('지선'))
+                                              busColor = Colors.green;
+                                            if (bus.contains('마을'))
+                                              busColor = Colors.orange;
 
                                             return Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 8,
-                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
                                               decoration: BoxDecoration(
-                                                color: busColor.withOpacity(0.05),
-                                                borderRadius: BorderRadius.circular(12),
-                                                border: Border.all(color: busColor.withOpacity(0.2)),
+                                                color: busColor.withOpacity(
+                                                  0.05,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: busColor.withOpacity(
+                                                    0.2,
+                                                  ),
+                                                ),
                                               ),
                                               child: Text(
                                                 bus,
@@ -1118,7 +1091,9 @@ class _MainScreenState extends State<MainScreen> {
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('${departureStation!.stationName}역 및 전국 지하철 시간표 데이터를 최신으로 동기화합니다.'),
+                        content: Text(
+                          '${departureStation!.stationName}역 및 전국 지하철 시간표 데이터를 최신으로 동기화합니다.',
+                        ),
                         duration: const Duration(seconds: 2),
                         backgroundColor: Colors.blue.shade700,
                         behavior: SnackBarBehavior.floating,
@@ -1127,7 +1102,8 @@ class _MainScreenState extends State<MainScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => TimetableScreen(station: departureStation!),
+                        builder: (context) =>
+                            TimetableScreen(station: departureStation!),
                       ),
                     );
                   },
@@ -1191,10 +1167,7 @@ class _MainScreenState extends State<MainScreen> {
               Text(
                 subtitle,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: color.withOpacity(0.8),
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: color.withOpacity(0.8), fontSize: 12),
               ),
               const SizedBox(height: 8),
               Text(
