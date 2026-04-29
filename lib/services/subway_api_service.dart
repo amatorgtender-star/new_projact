@@ -9,7 +9,11 @@ class SubwayApiService {
   static const String _realtimeApiKey = '7a4555505767746538396c53637555';
 
   // 정적 시간표: 서울 열린데이터광장 (https://data.seoul.go.kr)
-  static const String _timetableApiKey = '416d7254536774653131334f41454d51';
+  static const String _seoulApiKey = '416d7254536774653131334f41454d51';
+
+  // 시간표: 한국철도공사_열차운행정보 (https://www.data.go.kr/data/15143847/openapi.do)
+  static const String _timetableApiKey =
+      'd02d49a67b0c7b038d69ad5bf18ace33a87905b790fe5d0dca4f9de26562ba26';
   // ─────────────────────────────────────────────────────────────────────────────
 
   /// 실시간 도착 정보 조회
@@ -59,7 +63,9 @@ class SubwayApiService {
     try {
       data = json.decode(response.body);
     } catch (e) {
-      debugPrint('JSON 파싱 실패. 응답 내용: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
+      debugPrint(
+        'JSON 파싱 실패. 응답 내용: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}',
+      );
       throw Exception('서버 응답 형식이 올바르지 않습니다 (JSON 아님)');
     }
 
@@ -80,73 +86,97 @@ class SubwayApiService {
     return list.cast<Map<String, dynamic>>().map(ArrivalInfo.fromJson).toList();
   }
 
-  /// 정적 시간표 조회
+  // 시간표
   static Future<List<TrainSchedule>> fetchTimetable(
-    String stationCode, {
-    int direction = 1,
-    int? dayType,
+    String lineName, // '경의선', '1호선' 등
+    String stationCode, { // stnCd에 매핑
+    int direction = 1, // 1: 상행, 2: 하행
+    int? dayType, // 1: 평일, 2: 주말/공휴일
   }) async {
-    if (_timetableApiKey == 'YOUR_TIMETABLE_API_KEY') {
-      // API 키가 없을 때 더미 데이터 반환
-      await Future.delayed(const Duration(milliseconds: 500));
-      return List.generate(20, (index) {
-        final hour = (5 + index ~/ 4);
-        final minute = (index % 4) * 15;
-        final isExpress = index % 3 == 0;
-        return TrainSchedule(
-          time:
-              '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}',
-          destination: direction == 1 ? '인천/신창' : '의정부/광운대',
-          type: isExpress ? '급행' : '일반',
-          isExpress: isExpress,
-        );
-      });
-    }
+    // 1. 사용자 입력값을 API 규격 문자열로 변환
+    final String dayStr = (dayType == 1) ? '평일' : '주말';
+    final bool isLine2 = (lineName == '2호선');
 
-    final day = dayType ?? currentDayType();
-    final uri = Uri.parse(
-      'http://openapi.seoul.go.kr:8088/$_timetableApiKey'
-      '/json/SearchSTNTimeTableByIDService/1/500'
-      '/$stationCode/$day/$direction',
+    final String upDown = isLine2
+        ? (direction == 1 ? '내선' : '외선') // 2호선: 1(내선), 2(외선)
+        : (direction == 1 ? '상행' : '하행'); // 그 외: 1(상행), 2(하행)
+    //
+    String updatedLineName = switch (lineName) {
+      '경의중앙선' => '경의선',
+      '수인분당선' => '수인선',
+      '신분당선' => '신분당',
+      '공항철도' => '공항선',
+      '우이신설경전철' => '우이신설선',
+      '신림경전철' => '신림선',
+      '의정부경전철' => '의정부선',
+      '용인경전철' => '에버라인',
+      '서해선' => '서해선', // 변환이 필요 없더라도 명시적으로 작성 가능
+      _ => lineName, // 그 외 나머지 호선들 (1~9호선 등)
+    };
+    final Uri uri = Uri.https(
+      'apis.data.go.kr',
+      '/B553766/schedule/getTrainSch',
+      {
+        'serviceKey': _timetableApiKey, // 인코딩되지 않은 원본 키 사용 권장
+        'pageNo': '1',
+        'numOfRows': '500', // 하루치 시간표를 모두 가져오기 위해 넉넉히 설정
+        'dataType': 'JSON',
+        'lineNm': updatedLineName, // 변수화 완료
+        'stnCd': stationCode, // 명세서의 stnCd와 매핑
+        'upbdnbSe': upDown, // 필수: 상행/하행/내선/외선
+        'wkndSe': dayStr, // 필수: 평일/주말/공휴일/상시
+        'tmprTmtblYn': 'N', // 필수: 임시시간표 여부 (기본 N)
+      },
     );
-    final response = await http.get(uri);
 
-    if (response.statusCode != 200) {
-      throw Exception('서버 오류: ${response.statusCode}');
-    }
-
-    dynamic data;
     try {
-      data = json.decode(response.body);
-    } catch (e) {
-      debugPrint('JSON 파싱 실패 (시간표). 응답 내용: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
-      throw Exception('서버 응답 형식이 올바르지 않습니다 (JSON 아님)');
-    }
+      final response = await http.get(uri);
+      debugPrint(' fetchTimetable[uri]($uri)');
+      debugPrint(' fetchTimetable ($response)');
+      if (response.statusCode != 200) {
+        throw Exception('네트워크 오류: ${response.statusCode}');
+      }
 
-    if (data is! Map<String, dynamic>) {
-      throw Exception('서버 응답 형식이 올바르지 않습니다 (Map 아님)');
-    }
-    final service =
-        data['SearchSTNTimeTableByIDService'] as Map<String, dynamic>?;
+      final Map<String, dynamic> decoded = json.decode(response.body);
+      final responseData = decoded['response'];
 
-    // 데이터 자체가 없는 경우 (키가 누락된 경우 포함) 빈 리스트 반환
-    if (service == null) {
-      return [];
-    }
+      // 2. API 응답 헤더 및 바디 유효성 검사
+      if (responseData == null) throw Exception('API 응답 구조가 올바르지 않습니다.');
 
-    final result = service['RESULT'] as Map<String, dynamic>?;
-    if (result != null && result['CODE'] != 'INFO-000') {
-      if (result['CODE'] == 'INFO-200') {
+      final header = responseData['header'];
+      final body = responseData['body'];
+
+      if (header != null && header['resultCode'] != '00') {
+        throw Exception(
+          'API 에러: [${header['resultCode']}] ${header['resultMsg']}',
+        );
+      }
+
+      // 데이터가 없는 경우 (items가 빈 문자열 ""로 오는 경우 대응)
+      if (body == null || body['items'] == null || body['items'] == '') {
+        debugPrint('조회된 시간표 데이터가 없습니다 ($lineName, $stationCode)');
         return [];
       }
-      throw Exception(result['MESSAGE'] as String? ?? '시간표 조회 실패');
-    }
 
-    final rows = (service['row'] as List?) ?? [];
-    return rows
-        .cast<Map<String, dynamic>>()
-        .map(TrainSchedule.fromJson)
-        .toList();
+      final rawItem = body['items']['item'];
+
+      // 3. 응답 데이터 타입 정규화 (Map인 경우 List로 변환)
+      List<dynamic> itemList;
+      if (rawItem is List) {
+        itemList = rawItem;
+      } else if (rawItem is Map) {
+        itemList = [rawItem];
+      } else {
+        return [];
+      }
+
+      return itemList
+          .map((e) => TrainSchedule.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('fetchTimetable 오류: $e');
+      rethrow;
+    }
   }
 
   /// 전체 지하철역 마스터 정보 조회 (페이지네이션으로 전체 수집)
@@ -162,10 +192,10 @@ class SubwayApiService {
       while (true) {
         final end = start + pageSize - 1;
         final uri = Uri.parse(
-          'http://openapi.seoul.go.kr:8088/$_timetableApiKey'
+          'http://openapi.seoul.go.kr:8088/$_seoulApiKey'
           '/json/SearchSTNBySubwayLineInfo/$start/$end/',
         );
-
+        debugPrint('[fetchAllStations] $uri');
         debugPrint('[fetchAllStations] 페이지 $pageNum 요청: $start~$end');
         final response = await http.get(uri);
         debugPrint('[fetchAllStations] HTTP ${response.statusCode}');
@@ -176,10 +206,10 @@ class SubwayApiService {
         }
 
         final data = json.decode(response.body) as Map<String, dynamic>;
-        final serviceKey = data.containsKey('SearchSTNBySubwayLineInfo') 
-            ? 'SearchSTNBySubwayLineInfo' 
+        final serviceKey = data.containsKey('SearchSTNBySubwayLineInfo')
+            ? 'SearchSTNBySubwayLineInfo'
             : 'SearchSTNBySubwayLineService';
-            
+
         final service = data[serviceKey] as Map<String, dynamic>?;
         if (service == null) {
           debugPrint(
@@ -224,7 +254,7 @@ class SubwayApiService {
             RegExp(r'^0+(\d)'),
             (m) => m.group(1)!,
           );
-          
+
           // 노선명 표준화
           const lineNameMap = {
             '김포도시철도': '김포골드라인',
@@ -238,7 +268,7 @@ class SubwayApiService {
           final key = '$name|$line';
           if (!seen.contains(key)) {
             seen.add(key);
-            
+
             // [Timetable] 전국 지하철 시간표 동기화 완료
             debugPrint('[Timetable] 전국 지하철 시간표 동기화 완료: $name');
 

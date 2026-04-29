@@ -37,10 +37,7 @@ class ArrivalInfo {
     String dest = json['bstatnNm'] as String? ?? '종착역';
 
     // 역명 표준화 (성북 -> 광운대 등)
-    const stationNameMap = {
-      '성북': '광운대',
-      '신성북': '광운대',
-    };
+    const stationNameMap = {'성북': '광운대', '신성북': '광운대'};
 
     stationNameMap.forEach((old, newName) {
       status = status.replaceAll(old, newName);
@@ -75,10 +72,10 @@ class ArrivalInfo {
 
     // currentTrainStatus (arvlMsg2) 정제
     String msg = currentTrainStatus;
-    
+
     // "[7]번째 전역 (행신)" -> "7번째 전역 (행신)"
     msg = msg.replaceAll('[', '').replaceAll(']', '');
-    
+
     // "문산행 7번째 전역 (행신)" -> "7번째 전역 (행신)" (목적지 중복 제거)
     if (msg.contains('행')) {
       final parts = msg.split(' ');
@@ -147,18 +144,21 @@ class TrainSchedule {
   });
 
   factory TrainSchedule.fromJson(Map<String, dynamic> json) {
-    // LEFTTIME이 있으면 사용, 없으면 ARRIVETIME 사용
-    final leftTime = json['LEFTTIME']?.toString() ?? '';
-    final arriveTime = json['ARRIVETIME']?.toString() ?? '';
-    final rawTime = (leftTime.isNotEmpty && leftTime != '00:00:00')
-        ? leftTime
-        : arriveTime;
+    // 1. 시간 파싱 (trainDptreTm 우선, 없으면 기존 LEFTTIME 등 사용)
+    final dptTm =
+        json['trainDptreTm']?.toString() ?? json['LEFTTIME']?.toString() ?? '';
+    final arvTm =
+        json['trainArvlTm']?.toString() ?? json['ARRIVETIME']?.toString() ?? '';
 
+    final rawTime = (dptTm.isNotEmpty && dptTm != '00:00:00') ? dptTm : arvTm;
+
+    // "06:45:30" 형태에서 앞 5자리 "06:45"만 추출
     final time = rawTime.length >= 5 ? rawTime.substring(0, 5) : rawTime;
 
-    // 종착역명: API 실제 필드는 SUBWAYENAME (SUBWAYNAME과 다름)
+    // 2. 종착역 파싱 (arvlStnNm 우선 적용)
     final destination =
-        (json['SUBWAYENAME']?.toString() ??
+        (json['arvlStnNm']?.toString() ?? // 👈 새로운 API의 종착역 필드
+                json['SUBWAYENAME']?.toString() ?? // 이하 기존 API 필드들
                 json['SUBWAYSTNNAME']?.toString() ??
                 json['DESTSTATION_NM']?.toString() ??
                 json['SUBWAYSTN_NM']?.toString() ??
@@ -166,17 +166,8 @@ class TrainSchedule {
                 '')
             .trim();
 
-    // EXPRESS_YN: G(일반), D(급행/직통), S(급행), Y(급행), N(일반), 1(급행)
-    // DIRECT_YN: 1(급행), 2(특급), 0(일반)
-    final directYn = (json['DIRECT_YN']?.toString() ?? '').trim();
-    final expressYn = (json['EXPRESS_YN']?.toString() ?? '').trim();
-
-    bool isExpress = false;
-    if (directYn.isNotEmpty && directYn != '0' && directYn != 'null') {
-      isExpress = directYn == '1' || directYn == '2';
-    } else if (expressYn.isNotEmpty && expressYn != 'G' && expressYn != 'N' && expressYn != 'null') {
-      isExpress = expressYn == 'D' || expressYn == 'S' || expressYn == '1' || expressYn == 'Y';
-    }
+    // 3. 급행 여부 파싱 (trainKnd 우선 적용)
+    bool isExpress = (json['etrnYn']?.toString() == 'Y');
 
     return TrainSchedule(
       time: time,

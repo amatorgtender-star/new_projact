@@ -106,6 +106,7 @@ class _TimetableScreenState extends State<TimetableScreen>
 
       final futures = [
         SubwayApiService.fetchTimetable(
+          widget.station.lineName,
           widget.station.stationCode,
           direction: 1,
           dayType: _dayType,
@@ -115,6 +116,7 @@ class _TimetableScreenState extends State<TimetableScreen>
           return <TrainSchedule>[];
         }),
         SubwayApiService.fetchTimetable(
+          widget.station.lineName,
           widget.station.stationCode,
           direction: 2,
           dayType: _dayType,
